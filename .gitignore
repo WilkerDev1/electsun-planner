@@ -16,3 +16,6 @@ privado/
 *.csv
 uploads/
 backups/
+
+# Worktrees y ajustes locales de agentes
+.claude/
