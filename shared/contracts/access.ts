@@ -7,7 +7,12 @@ export const CreateLinkBody = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("tv"), name: z.string().trim().min(1).max(80) }),
   z.object({ kind: z.literal("mobile"), name: z.string().trim().min(1).max(80).optional(), employee_id: z.uuid() }),
 ]);
-export const RedeemBody = z.object({ token: z.string().min(20).max(300) });
+/**
+ * Canje de un enlace (ACC-04). Dos formatos:
+ * - móvil: `token` = `<id>.<token>` (el fragmento de `/m/activar#...`), sin `id`;
+ * - TV: `token` = el fragmento de `/tv/:id#...` e `id` = el `:id` de la ruta.
+ */
+export const RedeemBody = z.object({ token: z.string().min(20).max(300), id: z.uuid().optional() });
 
 export type AccessLink = {
   id: string;
