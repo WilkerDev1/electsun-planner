@@ -82,5 +82,7 @@ export type ImportReport = {
   created: number;
   updated: number;
   errors: number;
+  /** Filas del archivo que ya coinciden con el proyecto y no cambian nada. */
+  unchanged?: number;
   rows: ImportRow[];
 };

@@ -334,3 +334,79 @@ export function colorDistance(a: string, b: string): number {
   const [x, y] = [rgb(a), rgb(b)];
   return Math.sqrt(x.reduce((s, v, i) => s + (v - y[i]) ** 2, 0));
 }
+
+// ---------- Edición de proyectos (F1·B: PRY, CAL-05, VAL-05, VAL-09) ----------
+// Las usan el servidor (PATCH, importación) y el cliente (guardado optimista), para que ambos calculen igual.
+
+export type Schedule = { start_date: ISODate | null; end_date: ISODate | null; estimated_days: number | null };
+
+/**
+ * Mantiene coherentes inicio, días y fin (CAL-05): si cambian el inicio o los días se recalcula el fin;
+ * si el fin se cambia a mano se recalculan los días. Con fin y días a la vez, manda el fin.
+ */
+export function reconcileSchedule(prev: Schedule, patch: Partial<Schedule>): Schedule {
+  const next: Schedule = {
+    start_date: patch.start_date !== undefined ? patch.start_date : prev.start_date,
+    end_date: patch.end_date !== undefined ? patch.end_date : prev.end_date,
+    estimated_days: patch.estimated_days !== undefined ? patch.estimated_days : prev.estimated_days,
+  };
+  const { start_date: s, end_date: e } = next;
+  if (patch.end_date !== undefined) {
+    if (e === null) next.estimated_days = null;
+    else if (s && e >= s) next.estimated_days = countWorkdays(s, e);
+  } else if (patch.start_date !== undefined || patch.estimated_days !== undefined) {
+    if (s && next.estimated_days) next.end_date = estimatedEnd(s, next.estimated_days);
+    else if (!s && patch.start_date !== undefined) next.end_date = null;
+    else if (s && e && e >= s) next.estimated_days = countWorkdays(s, e);
+  }
+  return next;
+}
+
+/** Tipos que cierran la obra y fijan el fin real. */
+export const FINISHED_KINDS: readonly StatusKind[] = ["terminado", "post_obra"];
+
+/** Fin real al cambiar de estado: se conserva o se fija en `fallback` si el estado cierra la obra; si no, se limpia. */
+export const actualEndFor = (kind: StatusKind, prev: ISODate | null, fallback: ISODate): ISODate | null =>
+  FINISHED_KINDS.includes(kind) ? (prev ?? fallback) : null;
+
+/** kWp como texto con 2 decimales. `null` si está vacío o es "N/A"; `undefined` si no se entiende. Acepta coma decimal. */
+export function parseKwp(v: unknown): string | null | undefined {
+  if (v === null || v === undefined) return null;
+  let s: string;
+  if (typeof v === "number") s = String(v);
+  else if (typeof v === "string") s = v.trim().replace(/\s*kwp$/i, "").replace(",", ".");
+  else return undefined;
+  if (EMPTY_DATE.test(s)) return null;
+  if (!/^\d+(\.\d+)?$/.test(s)) return undefined;
+  const n = Number(s);
+  return n > 999999.99 ? undefined : n.toFixed(2);
+}
+
+export type MergeableProject = Schedule &
+  Prep & {
+    status_id: string;
+    actual_end: ISODate | null;
+    show_on_mural: boolean;
+    mural_until: ISODate | null;
+  };
+
+/**
+ * Aplica un cambio a un proyecto con todas las normalizaciones: fechas coherentes (CAL-05),
+ * `prep_ede` fuera si es híbrido (VAL-09), fin real al cerrar o reabrir la obra y "hasta" del mural (+7 días).
+ * `kind` es el tipo del estado resultante.
+ */
+export function mergeProject<T extends MergeableProject>(
+  prev: T,
+  patch: Partial<T>,
+  kind: StatusKind,
+  today: ISODate,
+  finishedOn: ISODate = today,
+): T {
+  const next: T = { ...prev, ...patch, ...reconcileSchedule(prev, patch) };
+  if (next.system_type === "hibrido") next.prep_ede = false;
+  if (patch.status_id !== undefined && patch.status_id !== prev.status_id)
+    next.actual_end = actualEndFor(kind, prev.actual_end, finishedOn);
+  if (patch.show_on_mural === true && !prev.show_on_mural && patch.mural_until === undefined && (!next.mural_until || next.mural_until < today))
+    next.mural_until = addDays(today, 7);
+  return next;
+}

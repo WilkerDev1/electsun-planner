@@ -19,6 +19,10 @@ import {
   waitReason,
   workdayIndex,
   colorDistance,
+  reconcileSchedule,
+  parseKwp,
+  actualEndFor,
+  mergeProject,
   type Schedulable,
 } from "../shared/domain.js";
 
@@ -133,4 +137,44 @@ test("hoy en Santo Domingo y textos", () => {
   assert.equal(longDate(TODAY), "Martes 27 de octubre");
   assert.ok(colorDistance("#EA6A1F", "#EA580C") < 40);
   assert.ok(colorDistance("#EA6A1F", "#0EA5E9") > 150);
+});
+
+test("fechas coherentes de la programación (CAL-05)", () => {
+  const prev = { start_date: "2026-10-29", end_date: "2026-10-29", estimated_days: 1 };
+  assert.deepEqual(reconcileSchedule(prev, { estimated_days: 3 }), { start_date: "2026-10-29", end_date: "2026-10-31", estimated_days: 3 });
+  assert.deepEqual(reconcileSchedule(prev, { end_date: "2026-11-02" }), { start_date: "2026-10-29", end_date: "2026-11-02", estimated_days: 4 });
+  const long = { start_date: "2026-10-29", end_date: "2026-11-02", estimated_days: 4 };
+  assert.deepEqual(reconcileSchedule(long, { start_date: "2026-11-02" }), { start_date: "2026-11-02", end_date: "2026-11-05", estimated_days: 4 });
+  assert.equal(reconcileSchedule(long, { start_date: "2026-11-02", end_date: "2026-11-04" }).estimated_days, 3); // manda el fin
+  assert.equal(reconcileSchedule(long, { end_date: "2026-10-20" }).estimated_days, 4); // fin anterior: no toca los días
+  assert.deepEqual(reconcileSchedule(long, { start_date: null }), { start_date: null, end_date: null, estimated_days: 4 });
+  assert.equal(reconcileSchedule(long, { end_date: null }).estimated_days, null);
+  assert.deepEqual(reconcileSchedule({ start_date: null, end_date: null, estimated_days: null }, { start_date: "2026-10-27" }), { start_date: "2026-10-27", end_date: null, estimated_days: null });
+  assert.equal(reconcileSchedule({ start_date: "2026-10-27", end_date: "2026-10-30", estimated_days: null }, { start_date: "2026-10-28" }).estimated_days, 3);
+});
+
+test("kWp y fin real", () => {
+  assert.equal(parseKwp("12,5"), "12.50");
+  assert.equal(parseKwp(97.28), "97.28");
+  assert.equal(parseKwp("8.19 kWp"), "8.19");
+  assert.equal(parseKwp("N/A"), null);
+  assert.equal(parseKwp(""), null);
+  assert.equal(parseKwp("mucho"), undefined);
+  assert.equal(actualEndFor("terminado", null, TODAY), TODAY);
+  assert.equal(actualEndFor("post_obra", "2026-10-06", TODAY), "2026-10-06");
+  assert.equal(actualEndFor("en_obra", "2026-10-06", TODAY), null);
+});
+
+test("mergeProject normaliza como el servidor (VAL-09, PRY-01)", () => {
+  const prev = {
+    start_date: "2026-10-19" as string | null, end_date: "2026-10-30" as string | null, estimated_days: 11 as number | null,
+    system_type: "neta" as "neta" | "hibrido", prep_plans: true, prep_materials: true, prep_ede: true,
+    status_id: "a", actual_end: null as string | null, show_on_mural: false, mural_until: null as string | null,
+  };
+  assert.equal(mergeProject(prev, { system_type: "hibrido" }, "en_obra", TODAY).prep_ede, false);
+  const done = mergeProject(prev, { status_id: "b" }, "terminado", TODAY);
+  assert.equal(done.actual_end, TODAY);
+  assert.equal(mergeProject(done, { status_id: "a" }, "en_obra", TODAY).actual_end, null);
+  assert.equal(mergeProject(prev, { show_on_mural: true }, "en_obra", TODAY).mural_until, "2026-11-03");
+  assert.equal(mergeProject({ ...prev, mural_until: "2026-10-20" }, { show_on_mural: true }, "en_obra", TODAY).mural_until, "2026-11-03");
 });
