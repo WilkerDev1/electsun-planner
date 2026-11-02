@@ -41,12 +41,20 @@ export type Employee = {
   mobile_access: "none" | "active" | "revoked";
   mobile_link_id: string | null;
 };
-export const EmployeeCreate = z.object({
+const employeeFields = {
   name: z.string().trim().min(1).max(120),
-  job: z.string().trim().max(80).default(""),
+  job: z.string().trim().max(80),
   level: z.enum(LEVELS),
-  team_id: id.nullable().optional(),
-  state: z.enum(EMPLOYEE_STATES).default("Activo"),
-  phone: z.string().trim().max(30).regex(/^[0-9+()\s-]*$/, "Solo números y + ( ) -").default(""),
+  team_id: id.nullable(),
+  state: z.enum(EMPLOYEE_STATES),
+  phone: z.string().trim().max(30).regex(/^[0-9+()\s-]*$/, "Solo números y + ( ) -"),
+};
+export const EmployeeCreate = z.object({
+  ...employeeFields,
+  job: employeeFields.job.default(""),
+  team_id: employeeFields.team_id.optional(),
+  state: employeeFields.state.default("Activo"),
+  phone: employeeFields.phone.default(""),
 });
-export const EmployeePatch = EmployeeCreate.partial().extend({ version });
+// Sin valores por defecto: un PATCH parcial no debe pisar los campos que no envía.
+export const EmployeePatch = z.object(employeeFields).partial().extend({ version });
