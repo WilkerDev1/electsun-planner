@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Dock lateral</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<nav aria-label="Modos" style="width: 84px; box-sizing: border-box; padding: 12px 10px 14px; display: flex; flex-direction: column; align-items: center; gap: 8px; background: #FFFFFF; border: 1px solid #EAECF0; border-radius: 26px; box-shadow: 0 8px 24px rgba(16,24,40,0.08); font-family: 'Plus Jakarta Sans', system-ui, sans-serif; color: #1B1F27">
+  <span style="width: 48px; height: 48px; border-radius: 15px; background: #EA6A1F; display: flex; align-items: center; justify-content: center; margin-bottom: 8px" role="img" aria-label="Electsun">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"></circle><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"></path></svg>
+  </span>
+  <sc-for list="{{items}}" as="it" hint-placeholder-count="3">
+    <a href="{{it.href}}" aria-current="{{it.current}}" style="width: 64px; height: 64px; border-radius: 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-decoration: none; background: {{it.bg}}; color: {{it.fg}}">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{it.icon}}"></path></svg>
+      <span style="font-size: 12px; font-weight: 700">{{it.label}}</span>
+    </a>
+  </sc-for>
+  <span style="width: 40px; height: 1px; background: #EAECF0; margin: 6px 0"></span>
+  <a href="V4MuralPrincipal.dc.html" style="width: 64px; height: 64px; border-radius: 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-decoration: none; color: #C2410C; background: #FFF4EC">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="13" rx="2"></rect><path d="M8 21h8M12 17v4"></path></svg>
+    <span style="font-size: 12px; font-weight: 700">Ver TV</span>
+  </a>
+  <span style="height: 24px"></span>
+  <span style="width: 40px; height: 40px; border-radius: 50%; background: #F2F4F7; color: #344054; font-size: 13px; font-weight: 800; display: flex; align-items: center; justify-content: center" role="img" aria-label="Yokasta Rodríguez">YR</span>
+</nav>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"active":{"editor":"enum","options":["proyectos","equipo","mural"],"default":"proyectos"},"$preview":{"width":96,"height":560}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const active = this.props.active ?? 'proyectos';
+    const items = [
+      { key: 'proyectos', label: 'Proyectos', href: 'V4Proyectos.dc.html', icon: 'M3 5h18v14H3zM3 10h18M3 15h18M9 5v14' },
+      { key: 'equipo', label: 'Equipo', href: 'V4EquipoTablas.dc.html', icon: 'M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 10a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M21 19v-1a4 4 0 0 0-3-3.9M16 3.1a3.5 3.5 0 0 1 0 6.8' },
+      { key: 'mural', label: 'Mural', href: 'V4Config.dc.html', icon: 'M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M14 4v4M8 10v4M16 16v4' }
+    ].map((it) => {
+      const on = it.key === active;
+      return { ...it, current: on ? 'page' : 'false', bg: on ? '#1B1F27' : 'transparent', fg: on ? '#FFFFFF' : '#475467' };
+    });
+    return { items };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+@import "tailwindcss";
+@import "@fontsource-variable/plus-jakarta-sans";
+
+/* Tokens del sistema visual V4 (BRIEF "Sistema visual", design/v4). */
+@theme {
+  --font-sans: "Plus Jakarta Sans Variable", system-ui, sans-serif;
+  --color-canvas: #f4f5f7;
+  --color-card: #ffffff;
+  --color-ink: #1b1f27;
+  --color-ink-2: #344054;
+  --color-muted: #475467;
+  --color-subtle: #5f6675;
+  --color-faint: #98a2b3;
+  --color-line: #eaecf0;
+  --color-line-2: #d0d5dd;
+  --color-fill: #f2f4f7;
+  --color-fill-2: #f9fafb;
+  --color-brand: #ea6a1f;
+  --color-brand-ink: #9a3412;
+  --color-brand-soft: #fff1e7;
+  --color-today: #c2410c;
+  --color-warn: #b54708;
+  --color-warn-soft: #fffaeb;
+  --color-warn-line: #fdb022;
+  --color-ok: #157f3d;
+  --color-ok-soft: #e7f7ee;
+  --color-danger: #b42318;
+  --color-danger-soft: #fef3f2;
+  --color-navy: #1f2a3d;
+  --radius-card: 22px;
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px rgba(16, 24, 40, 0.06);
+  --shadow-dock: 0 8px 24px rgba(16, 24, 40, 0.08);
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+body {
+  margin: 0;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+:focus-visible {
+  outline: 3px solid #1b1f27;
+  outline-offset: 2px;
+}

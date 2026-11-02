@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Proyectos · tabla</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap">
+<style>
+body{margin:0}
+.fld:focus-within{border-color:#EA6A1F !important;box-shadow:0 0 0 3px rgba(234,106,31,0.16)}
+details[open] summary svg:last-child{transform:rotate(90deg)}
+summary::-webkit-details-marker{display:none}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; align-items: flex-start; background: #F4F5F7; color: #1B1F27; font-family: 'Plus Jakarta Sans', system-ui, sans-serif">
+  <div style="flex: 0 0 auto; padding: 20px 0 20px 20px">
+    <dc-import name="V4Dock" active="proyectos" hint-size="84px,520px"></dc-import>
+  </div>
+
+  <main style="flex: 999 1 560px; min-width: 0; padding: 24px 28px 40px; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box">
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <h1 style="margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.02em">Proyectos</h1>
+      <span style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: #475467">
+        <span style="width: 8px; height: 8px; border-radius: 50%; background: #0B7A68"></span>Los cambios se guardan solos y aparecen en el mural al instante</span>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start">
+      <section aria-label="Proyectos" style="flex: 999 1 600px; min-width: 0; background: #FFFFFF; border: 1px solid #EAECF0; border-radius: 16px; overflow: hidden; box-shadow: 0 1px 2px rgba(16,24,40,0.04)">
+        <div role="group" aria-label="Filtrar por estado" style="display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid #EAECF0; overflow-x: auto">
+          <sc-for list="{{filters}}" as="f" hint-placeholder-count="6">
+            <button type="button" onClick="{{f.pick}}" aria-pressed="{{f.pressed}}" style="flex-shrink: 0; display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 10px; border: 0; border-bottom: 2px solid {{f.line}}; background: transparent; color: {{f.fg}}; font: inherit; font-size: 14px; font-weight: {{f.weight}}; cursor: pointer; white-space: nowrap">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: {{f.dot}}"></span>{{f.label}}
+              <span style="font-size: 12px; font-weight: 700; color: {{f.countFg}}; background: {{f.countBg}}; border-radius: 6px; padding: 1px 7px">{{f.count}}</span></button>
+          </sc-for>
+        </div>
+
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px">
+          <label style="display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px; border: 1px solid #EAECF0; border-radius: 8px; background: #FFFFFF; width: 240px; max-width: 100%; box-sizing: border-box">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#667085" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+            <input type="search" aria-label="Buscar proyecto" placeholder="Buscar proyecto o lugar…" style="border: 0; outline: none; font: inherit; font-size: 14px; flex: 1; min-width: 0; background: transparent">
+          </label>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap">
+            <button type="button" style="display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border: 1px solid #EAECF0; border-radius: 8px; background: #FFFFFF; color: #344054; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"></path></svg>Importar Excel</button>
+            <button type="button" style="display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border: 1px solid #EAECF0; border-radius: 8px; background: #FFFFFF; color: #344054; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"></path></svg>Exportar</button>
+            <button type="button" onClick="{{addRow}}" style="display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: #1B1F27; color: #FFFFFF; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Agregar proyecto</button>
+          </div>
+        </div>
+
+        <sc-if value="{{full}}" hint-placeholder-val="{{true}}">
+          <div style="overflow-x: auto; border-top: 1px solid #EAECF0">
+            <div role="table" aria-label="Tabla de proyectos" style="min-width: 1660px">
+              <div role="row" style="height: 42px; display: grid; grid-template-columns: 44px 44px 160px minmax(210px, 1fr) 76px 104px 132px 150px 96px 134px 134px 196px 220px 44px; background: #F9FAFB; border-bottom: 1px solid #EAECF0; font-size: 13px; font-weight: 600; color: #475467">
+                <span role="columnheader" style="display: flex; align-items: center; justify-content: center; border-right: 1px solid #EAECF0">#</span>
+                <span role="columnheader" style="display: flex; align-items: center; justify-content: center; border-right: 1px solid #EAECF0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Prioridad"><path d="M5 21V4M5 4h11l-2 4 2 4H5"></path></svg></span>
+                <span role="columnheader" style="display: flex; align-items: center; padding: 0 12px; border-right: 1px solid #EAECF0">Empresa</span>
+                <span role="columnheader" style="display: flex; align-items: center; padding: 0 12px; border-right: 1px solid #EAECF0">Proyecto</span>
+                <span role="columnheader" style="display: flex; align-items: center; justify-content: flex-end; padding: 0 12px; border-right: 1px solid #EAECF0">kWp</span>
+                <span role="columnheader" style="display: flex; align-items: center; padding: 0 12px; border-right: 1px solid #EAECF0">Tipo</span>
+                <span role="columnheader" style="display: flex; align-items: center; padding: 0 12px; border-right: 1px solid #EAECF0">Preparación</span>
+                <span role="columnheader" style="display: flex; align-items: center; padding: 0 12px; border-right: 1px solid #EAECF0">Lugar</span>
+                <span role="columnheader" style="display: flex; align-items: center; padding: 0 12px; border-right: 1px solid #EAECF0">Equipo</span>
+                <span role="columnheader" style="display: flex; align-items: center; padding: 0 12px; border-right: 1px solid #EAECF0">Inicio</span>
+                <span role="columnheader" style="display: flex; align-items: center; padding: 0 12px; border-right: 1px solid #EAECF0">Fin previsto</span>
+                <span role="columnheader" style="display: flex; align-items: center; padding: 0 12px; border-right: 1px solid #EAECF0">Estado</span>
+                <span role="columnheader" style="display: flex; align-items: center; padding: 0 12px; border-right: 1px solid #EAECF0">Observación</span>
+                <span role="columnheader" aria-label="Editar"></span>
+              </div>
+              <sc-for list="{{rows}}" as="r" hint-placeholder-count="18">
+                <div role="row" style="height: 46px; display: grid; grid-template-columns: 44px 44px 160px minmax(210px, 1fr) 76px 104px 132px 150px 96px 134px 134px 196px 220px 44px; border-bottom: 1px solid #EAECF0; background: {{r.rowBg}}; font-size: 14px">
+                  <span role="cell" style="display: flex; align-items: center; justify-content: center; border-right: 1px solid #EAECF0; color: #667085; font-size: 13px">{{r.num}}</span>
+                  <span role="cell" style="display: flex; align-items: center; justify-content: center; border-right: 1px solid #EAECF0">
+                    <button type="button" onClick="{{r.togglePriority}}" aria-pressed="{{r.priorityAttr}}" aria-label="Prioridad" style="width: 28px; height: 28px; border: 0; border-radius: 7px; background: {{r.prioBg}}; cursor: pointer; display: flex; align-items: center; justify-content: center">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="{{r.prioFill}}" stroke="{{r.prioStroke}}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 4 2 4H5"></path></svg>
+                    </button>
+                  </span>
+                  <span role="cell" style="display: flex; align-items: center; gap: 8px; padding: 0 12px; border-right: 1px solid #EAECF0; min-width: 0">
+                    <span style="width: 24px; height: 24px; flex-shrink: 0; border-radius: 6px; background: {{r.mBg}}; color: {{r.mFg}}; font-size: 10px; font-weight: 800; display: flex; align-items: center; justify-content: center">{{r.mono}}</span>
+                    <span style="font-size: 14px; font-weight: 500; color: #1B1F27; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{r.contractor}}</span>
+                  </span>
+                  <span role="cell" style="display: flex; align-items: center; padding: 0 6px; border-right: 1px solid #EAECF0; min-width: 0">
+                    <input type="text" value="{{r.name}}" onInput="{{r.setName}}" aria-label="Proyecto" style="width: 100%; font: inherit; font-size: 14px; font-weight: 600; color: #1B1F27; border: 1px solid transparent; border-radius: 6px; padding: 5px 6px; background: transparent; min-width: 0; box-sizing: border-box">
+                  </span>
+                  <span role="cell" style="display: flex; align-items: center; justify-content: flex-end; padding: 0 12px; border-right: 1px solid #EAECF0; font-variant-numeric: tabular-nums; color: #1B1F27">{{r.kwp}}</span>
+                  <span role="cell" style="display: flex; align-items: center; padding: 0 10px; border-right: 1px solid #EAECF0">
+                    <span style="position: relative; display: inline-flex; align-items: center">
+                      <select value="{{r.tipo}}" onChange="{{r.setTipo}}" aria-label="Tipo de sistema" style="appearance: none; -webkit-appearance: none; font: inherit; font-size: 12px; font-weight: 700; color: #344054; height: 26px; border: 1px solid #EAECF0; border-radius: 6px; background: #FFFFFF; padding: 0 22px 0 8px; cursor: pointer">
+                        <option value="neta">Neta</option><option value="hibrido">Híbrido</option>
+                      </select>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#475467" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="position: absolute; right: 6px; pointer-events: none"><path d="m6 9 6 6 6-6"></path></svg>
+                    </span>
+                  </span>
+                  <span role="cell" style="display: flex; align-items: center; gap: 4px; padding: 0 10px; border-right: 1px solid #EAECF0">
+                    <sc-for list="{{r.prepChips}}" as="c" hint-placeholder-count="3">
+                      <button type="button" onClick="{{c.toggle}}" disabled="{{c.na}}" aria-pressed="{{c.pressed}}" title="{{c.title}}" aria-label="{{c.title}}" style="height: 26px; min-width: 34px; padding: 0 6px; border-radius: 6px; border: 1px {{c.borderStyle}} {{c.border}}; background: {{c.bg}}; color: {{c.fg}}; font: inherit; font-size: 11px; font-weight: 800; cursor: {{c.cursor}}; display: flex; align-items: center; justify-content: center; gap: 2px">{{c.short}}<sc-if value="{{c.ok}}" hint-placeholder-val="{{false}}"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" aria-hidden="true"><path d="m5 12 5 5 9-10"></path></svg></sc-if></button>
+                    </sc-for>
+                  </span>
+                  <span role="cell" style="display: flex; align-items: center; padding: 0 12px; border-right: 1px solid #EAECF0; min-width: 0"><span style="color: #344054; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{r.place}}</span></span>
+                  <span role="cell" style="display: flex; align-items: center; padding: 0 10px; border-right: 1px solid #EAECF0">
+                    <span style="position: relative; display: inline-flex; align-items: center">
+                      <select value="{{r.crew}}" onChange="{{r.setCrew}}" aria-label="Equipo" style="appearance: none; -webkit-appearance: none; font: inherit; font-size: 12px; font-weight: 700; color: {{r.crewFg}}; height: 26px; border: 0; border-radius: 6px; background: {{r.crewBg}}; padding: 0 24px 0 8px; cursor: pointer">
+                        <sc-for list="{{crewOptions}}" as="o" hint-placeholder-count="4"><option value="{{o.v}}">{{o.label}}</option></sc-for>
+                      </select>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="{{r.crewFg}}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="position: absolute; right: 7px; pointer-events: none"><path d="m6 9 6 6 6-6"></path></svg>
+                    </span>
+                  </span>
+                  <span role="cell" style="display: flex; align-items: center; padding: 0 6px; border-right: 1px solid #EAECF0; min-width: 0">
+                    <input type="date" value="{{r.start}}" onInput="{{r.setStart}}" aria-label="Inicio" style="width: 100%; font: inherit; font-size: 13px; color: {{r.startFg}}; border: 1px solid {{r.dateBorder}}; border-radius: 6px; padding: 4px 6px; background: transparent; min-width: 0; box-sizing: border-box">
+                  </span>
+                  <span role="cell" style="display: flex; align-items: center; padding: 0 6px; border-right: 1px solid #EAECF0; min-width: 0">
+                    <input type="date" value="{{r.end}}" onInput="{{r.setEnd}}" aria-label="Fin" style="width: 100%; font: inherit; font-size: 13px; color: {{r.endFg}}; border: 1px solid {{r.dateBorder}}; border-radius: 6px; padding: 4px 6px; background: transparent; min-width: 0; box-sizing: border-box">
+                  </span>
+                  <span role="cell" style="display: flex; align-items: center; padding: 0 10px; border-right: 1px solid #EAECF0">
+                    <span style="position: relative; display: inline-flex; align-items: center">
+                      <select value="{{r.status}}" onChange="{{r.setStatus}}" aria-label="Estado" style="appearance: none; -webkit-appearance: none; font: inherit; font-size: 12px; font-weight: 700; color: {{r.sFg}}; height: 26px; border: 0; border-radius: 6px; background: {{r.sBg}}; padding: 0 24px 0 8px; cursor: pointer">
+                        <sc-for list="{{statusOptions}}" as="o" hint-placeholder-count="5"><option value="{{o.v}}">{{o.v}}</option></sc-for>
+                      </select>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="{{r.sFg}}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="position: absolute; right: 7px; pointer-events: none"><path d="m6 9 6 6 6-6"></path></svg>
+                    </span>
+                    <sc-if value="{{r.isLate}}" hint-placeholder-val="{{false}}"><span style="margin-left: 6px; font-size: 11px; font-weight: 800; color: #B54708; background: #FFFAEB; border: 1px solid #FCE3B0; border-radius: 6px; padding: 2px 6px; white-space: nowrap">{{r.lateShort}}</span></sc-if>
+                  </span>
+                  <span role="cell" style="display: flex; align-items: center; gap: 6px; padding: 0 8px 0 12px; border-right: 1px solid #EAECF0; min-width: 0">
+                    <span style="flex: 1; min-width: 0; font-size: 13px; color: {{r.obsFg}}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{r.obsText}}</span>
+                    <sc-if value="{{r.hasObs}}" hint-placeholder-val="{{false}}">
+                      <button type="button" onClick="{{r.toggleMural}}" aria-pressed="{{r.muralAttr}}" title="Mostrar en el mural" aria-label="Mostrar en el mural" style="flex-shrink: 0; width: 26px; height: 26px; border: 1px solid {{r.muralBorder}}; border-radius: 6px; background: {{r.muralBg}}; cursor: pointer; display: flex; align-items: center; justify-content: center">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="{{r.muralStroke}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="13" rx="2"></rect><path d="M8 21h8M12 17v4"></path></svg>
+                      </button>
+                    </sc-if>
+                  </span>
+                  <span role="cell" style="display: flex; align-items: center; justify-content: center">
+                    <button type="button" onClick="{{r.open}}" aria-label="Editar {{r.name}}" style="width: 30px; height: 30px; border: 0; border-radius: 7px; background: transparent; color: #475467; cursor: pointer; display: flex; align-items: center; justify-content: center">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"></path></svg>
+                    </button>
+                  </span>
+                </div>
+                <sc-if value="{{r.hasWarning}}" hint-placeholder-val="{{false}}">
+                  <div role="row" style="display: grid; grid-template-columns: 88px minmax(0, 1fr); border-bottom: 1px solid #EAECF0; background: #FFFAEB">
+                    <span style="border-right: 1px solid #F5E3B8"></span>
+                    <span role="cell" style="display: flex; align-items: center; gap: 8px; padding: 7px 12px; font-size: 13px; font-weight: 600; color: #B54708">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 3 2 21h20zM12 10v5M12 18h.01"></path></svg>{{r.warning}}</span>
+                  </div>
+                </sc-if>
+              </sc-for>
+              <button type="button" onClick="{{addRow}}" style="width: 100%; height: 44px; padding: 0 16px; border: 0; background: #FFFFFF; display: flex; align-items: center; gap: 8px; font: inherit; font-size: 14px; font-weight: 600; color: #475467; cursor: pointer; text-align: left">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Agregar fila</button>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{compact}}" hint-placeholder-val="{{false}}">
+          <div aria-label="Lista de proyectos" style="border-top: 1px solid #EAECF0">
+            <div aria-hidden="true" style="height: 40px; display: grid; grid-template-columns: 40px minmax(0, 1fr) 136px 118px; background: #F9FAFB; border-bottom: 1px solid #EAECF0; font-size: 13px; font-weight: 600; color: #475467">
+              <span style="display: flex; align-items: center; justify-content: center; border-right: 1px solid #EAECF0">#</span>
+              <span style="display: flex; align-items: center; padding: 0 12px; border-right: 1px solid #EAECF0">Proyecto</span>
+              <span style="display: flex; align-items: center; padding: 0 12px; border-right: 1px solid #EAECF0">Estado</span>
+              <span style="display: flex; align-items: center; padding: 0 12px">Fechas</span>
+            </div>
+            <sc-for list="{{rows}}" as="r" hint-placeholder-count="18">
+              <button type="button" onClick="{{r.open}}" aria-current="{{r.currentAttr}}" style="width: 100%; height: 52px; padding: 0; border: 0; border-bottom: 1px solid #EAECF0; background: {{r.selBg}}; box-shadow: {{r.selShadow}}; display: grid; grid-template-columns: 40px minmax(0, 1fr) 136px 118px; font: inherit; color: #1B1F27; text-align: left; cursor: pointer">
+                <span style="display: flex; align-items: center; justify-content: center; border-right: 1px solid #EAECF0; font-size: 13px; color: #667085">{{r.num}}</span>
+                <span style="display: flex; align-items: center; gap: 10px; padding: 0 12px; border-right: 1px solid #EAECF0; min-width: 0">
+                  <span style="width: 24px; height: 24px; flex-shrink: 0; border-radius: 6px; background: {{r.mBg}}; color: {{r.mFg}}; font-size: 10px; font-weight: 800; display: flex; align-items: center; justify-content: center">{{r.mono}}</span>
+                  <span style="display: flex; flex-direction: column; min-width: 0; line-height: 1.3">
+                    <span style="font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{r.name}}</span>
+                    <span style="font-size: 12px; color: #667085; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{r.contractor}} · {{r.crewLabel}}</span>
+                  </span>
+                </span>
+                <span style="display: flex; align-items: center; padding: 0 12px; border-right: 1px solid #EAECF0">
+                  <span style="font-size: 12px; font-weight: 700; color: {{r.sFg}}; background: {{r.sBg}}; border-radius: 6px; padding: 4px 8px; white-space: nowrap">{{r.status}}</span>
+                </span>
+                <span style="display: flex; align-items: center; padding: 0 12px; font-size: 13px; color: {{r.datesFg}}; white-space: nowrap">{{r.datesShort}}</span>
+              </button>
+            </sc-for>
+          </div>
+        </sc-if>
+      </section>
+
+      <sc-if value="{{compact}}" hint-placeholder-val="{{false}}">
+        <aside aria-label="Editar proyecto" style="flex: 1 1 440px; max-width: 520px; min-width: 0; background: #F9FAFB; border: 1px solid #EAECF0; border-radius: 18px; box-shadow: 0 12px 32px rgba(16,24,40,0.08); display: flex; flex-direction: column">
+          <div style="padding: 18px 20px 6px; display: flex; align-items: center; justify-content: space-between; gap: 12px">
+            <div style="display: flex; align-items: center; gap: 12px; min-width: 0">
+              <span style="width: 40px; height: 40px; flex-shrink: 0; border-radius: 10px; background: {{ed.mBg}}; color: {{ed.mFg}}; font-size: 14px; font-weight: 800; display: flex; align-items: center; justify-content: center">{{ed.mono}}</span>
+              <span style="display: flex; flex-direction: column; min-width: 0; line-height: 1.25">
+                <span style="font-size: 13px; font-weight: 600; color: #667085">Editar proyecto</span>
+                <span style="font-size: 20px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ed.name}}</span>
+              </span>
+            </div>
+            <button type="button" onClick="{{close}}" aria-label="Cerrar" style="width: 36px; height: 36px; flex-shrink: 0; border-radius: 10px; border: 0; background: transparent; color: #475467; cursor: pointer; display: flex; align-items: center; justify-content: center">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg></button>
+          </div>
+
+          <div style="padding: 12px 20px 20px; display: flex; flex-direction: column; gap: 18px">
+            <div style="display: flex; flex-direction: column; gap: 8px">
+              <span style="font-size: 14px; font-weight: 700">Datos del proyecto</span>
+              <div style="background: #FFFFFF; border: 1px solid #EAECF0; border-radius: 14px; padding: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+                <label class="fld" style="grid-column: span 2; display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border: 1px solid #EAECF0; border-radius: 10px; background: #FFFFFF">
+                  <span style="font-size: 12px; font-weight: 600; color: #667085">Proyecto / cliente</span>
+                  <input type="text" value="{{ed.name}}" onInput="{{ed.setName}}" style="border: 0; outline: none; padding: 0; font: inherit; font-size: 14px; font-weight: 600; color: #1B1F27; background: transparent; min-width: 0"></label>
+                <label class="fld" style="display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border: 1px solid #EAECF0; border-radius: 10px; background: #FFFFFF">
+                  <span style="font-size: 12px; font-weight: 600; color: #667085">Empresa</span>
+                  <select value="{{ed.contractor}}" onChange="{{ed.setContractor}}" style="border: 0; outline: none; padding: 0; font: inherit; font-size: 14px; font-weight: 500; color: #1B1F27; background: transparent; min-width: 0; cursor: pointer">
+                    <sc-for list="{{companyOptions}}" as="o" hint-placeholder-count="5"><option value="{{o.v}}">{{o.v}}</option></sc-for>
+                  </select></label>
+                <label class="fld" style="display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border: 1px solid #EAECF0; border-radius: 10px; background: #FFFFFF">
+                  <span style="font-size: 12px; font-weight: 600; color: #667085">Potencia (kWp)</span>
+                  <input type="text" inputmode="decimal" value="{{ed.kwp}}" onInput="{{ed.setKwp}}" style="border: 0; outline: none; padding: 0; font: inherit; font-size: 14px; font-weight: 500; color: #1B1F27; background: transparent; min-width: 0; font-variant-numeric: tabular-nums"></label>
+                <label class="fld" style="display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border: 1px solid #EAECF0; border-radius: 10px; background: #FFFFFF">
+                  <span style="font-size: 12px; font-weight: 600; color: #667085">Lugar</span>
+                  <input type="text" value="{{ed.place}}" onInput="{{ed.setPlace}}" style="border: 0; outline: none; padding: 0; font: inherit; font-size: 14px; font-weight: 500; color: #1B1F27; background: transparent; min-width: 0"></label>
+                <label class="fld" style="display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border: 1px solid #EAECF0; border-radius: 10px; background: #FFFFFF">
+                  <span style="font-size: 12px; font-weight: 600; color: #667085">Fecha de venta</span>
+                  <input type="date" value="{{ed.sale}}" onInput="{{ed.setSale}}" style="border: 0; outline: none; padding: 0; font: inherit; font-size: 14px; font-weight: 500; color: #1B1F27; background: transparent; min-width: 0"></label>
+                <label class="fld" style="grid-column: span 2; display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border: 1px solid #EAECF0; border-radius: 10px; background: #FFFFFF">
+                  <span style="font-size: 12px; font-weight: 600; color: #667085">Encargado</span>
+                  <select value="{{ed.lead}}" onChange="{{ed.setLead}}" style="border: 0; outline: none; padding: 0; font: inherit; font-size: 14px; font-weight: 500; color: #1B1F27; background: transparent; min-width: 0; cursor: pointer">
+                    <sc-for list="{{leadOptions}}" as="o" hint-placeholder-count="5"><option value="{{o.v}}">{{o.v}}</option></sc-for>
+                  </select></label>
+              </div>
+            </div>
+
+            <fieldset style="border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0">
+              <legend style="font-size: 14px; font-weight: 700; padding: 0 0 8px">Estado</legend>
+              <div style="background: #FFFFFF; border: 1px solid #EAECF0; border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 10px">
+                <div style="display: flex; flex-wrap: wrap; gap: 6px">
+                  <sc-for list="{{ed.statuses}}" as="s" hint-placeholder-count="5">
+                    <button type="button" onClick="{{s.pick}}" aria-pressed="{{s.pressed}}" style="display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid {{s.border}}; background: {{s.bg}}; color: {{s.fg}}; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer">
+                      <span style="width: 7px; height: 7px; border-radius: 50%; background: {{s.dot}}"></span>{{s.label}}</button>
+                  </sc-for>
+                </div>
+                <sc-if value="{{ed.paused}}" hint-placeholder-val="{{false}}">
+                  <label class="fld" style="display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border: 1px solid #F3B8CB; border-radius: 10px; background: #FFF8FA">
+                    <span style="font-size: 12px; font-weight: 700; color: #A11C47">Motivo de la pausa · obligatorio</span>
+                    <input type="text" value="{{ed.pause}}" onInput="{{ed.setPause}}" placeholder="Ej.: esperando documentos del cliente" style="border: 0; outline: none; padding: 0; font: inherit; font-size: 14px; font-weight: 500; color: #1B1F27; background: transparent; min-width: 0"></label>
+                </sc-if>
+              </div>
+            </fieldset>
+
+            <div style="display: flex; flex-direction: column; gap: 8px">
+              <span style="display: flex; align-items: center; justify-content: space-between; font-size: 14px; font-weight: 700">Preparación
+                <span style="font-size: 12px; font-weight: 700; color: {{ed.prepFg}}; background: {{ed.prepBg}}; border-radius: 6px; padding: 2px 8px">{{ed.prepText}}</span></span>
+              <div style="background: #FFFFFF; border: 1px solid #EAECF0; border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 10px">
+                <div role="group" aria-label="Tipo de sistema" style="display: flex; padding: 3px; background: #F2F4F7; border-radius: 10px">
+                  <sc-for list="{{ed.tipos}}" as="t" hint-placeholder-count="2">
+                    <button type="button" onClick="{{t.pick}}" aria-pressed="{{t.pressed}}" style="flex: 1; height: 34px; border: 0; border-radius: 8px; background: {{t.bg}}; box-shadow: {{t.shadow}}; font: inherit; font-size: 13px; font-weight: 700; color: {{t.fg}}; cursor: pointer">{{t.label}}</button>
+                  </sc-for>
+                </div>
+                <sc-for list="{{ed.prepItems}}" as="c" hint-placeholder-count="3">
+                  <button type="button" role="checkbox" aria-checked="{{c.pressed}}" onClick="{{c.toggle}}" disabled="{{c.na}}" style="display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 10px; border: 1px solid {{c.rowBorder}}; border-radius: 10px; background: {{c.rowBg}}; font: inherit; text-align: left; cursor: {{c.cursor}}">
+                    <span style="width: 22px; height: 22px; flex-shrink: 0; box-sizing: border-box; border-radius: 6px; border: 2px solid {{c.boxBorder}}; background: {{c.boxBg}}; color: #FFFFFF; display: flex; align-items: center; justify-content: center">
+                      <sc-if value="{{c.ok}}" hint-placeholder-val="{{false}}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" aria-hidden="true"><path d="m5 12 5 5 9-10"></path></svg></sc-if>
+                    </span>
+                    <span style="display: flex; flex-direction: column; line-height: 1.3">
+                      <span style="font-size: 14px; font-weight: 700; color: {{c.fg}}">{{c.title}}</span>
+                      <span style="font-size: 12px; color: #667085">{{c.hint}}</span>
+                    </span>
+                  </button>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 8px">
+              <span style="font-size: 14px; font-weight: 700">Programación</span>
+              <div style="background: #FFFFFF; border: 1px solid #EAECF0; border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 12px">
+                <div style="display: grid; grid-template-columns: 96px repeat(2, minmax(0, 1fr)); gap: 10px">
+                  <label class="fld" style="display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border: 1px solid #EAECF0; border-radius: 10px; background: #FFFFFF">
+                    <span style="font-size: 12px; font-weight: 600; color: #667085">Equipo</span>
+                    <select value="{{ed.crew}}" onChange="{{ed.setCrew}}" style="border: 0; outline: none; padding: 0; font: inherit; font-size: 14px; font-weight: 600; color: #1B1F27; background: transparent; min-width: 0; cursor: pointer">
+                      <sc-for list="{{crewOptions}}" as="o" hint-placeholder-count="4"><option value="{{o.v}}">{{o.label}}</option></sc-for>
+                    </select></label>
+                  <label class="fld" style="display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border: 1px solid #EAECF0; border-radius: 10px; background: #FFFFFF">
+                    <span style="font-size: 12px; font-weight: 600; color: #667085">Inicio</span>
+                    <input type="date" value="{{ed.start}}" onInput="{{ed.setStart}}" style="border: 0; outline: none; padding: 0; font: inherit; font-size: 14px; font-weight: 500; color: #1B1F27; background: transparent; min-width: 0"></label>
+                  <label class="fld" style="display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border: 1px solid #EAECF0; border-radius: 10px; background: #FFFFFF">
+                    <span style="font-size: 12px; font-weight: 600; color: #667085">Días estimados</span>
+                    <input type="number" min="1" max="120" value="{{ed.dias}}" onInput="{{ed.setDias}}" style="border: 0; outline: none; padding: 0; font: inherit; font-size: 14px; font-weight: 600; color: #1B1F27; background: transparent; min-width: 0; font-variant-numeric: tabular-nums"></label>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; border-radius: 10px; background: #F9FAFB; font-size: 13px; color: #475467">
+                  <span>Fin previsto · <strong style="color: #1B1F27">{{ed.finText}}</strong></span>
+                  <span style="color: #667085">lunes a sábado</span>
+                </div>
+                <sc-if value="{{ed.isLate}}" hint-placeholder-val="{{false}}">
+                  <div style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; border: 1px solid #FCE3B0; background: #FFFAEB; color: #B54708; font-size: 13px; font-weight: 600">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>{{ed.lateText}}</div>
+                </sc-if>
+                <div style="display: flex; flex-direction: column; gap: 6px">
+                  <span style="font-size: 12px; font-weight: 600; color: #667085">Vista previa en el calendario del mural · 26 oct – 7 nov</span>
+                  <div style="height: 26px; border-radius: 8px; border: 1px solid #EAECF0; background: repeating-linear-gradient(to right, #FFFFFF 0, #FFFFFF calc(8.3333% - 1px), #EEF0F3 calc(8.3333% - 1px), #EEF0F3 8.3333%); position: relative; overflow: hidden">
+                    <sc-if value="{{ed.inRange}}" hint-placeholder-val="{{true}}">
+                      <div style="position: absolute; top: 4px; bottom: 4px; left: {{ed.barLeft}}; width: {{ed.barWidth}}; box-sizing: border-box; border-radius: 6px; background: {{ed.barTint}}; border: 1.5px solid {{ed.barSolid}}"></div>
+                    </sc-if>
+                    <div style="position: absolute; top: 0; bottom: 0; left: 12.5%; width: 2px; background: #C2410C"></div>
+                  </div>
+                  <span style="font-size: 13px; color: {{ed.rangeFg}}; font-weight: 600">{{ed.rangeText}}</span>
+                </div>
+                <sc-if value="{{ed.hasConflict}}" hint-placeholder-val="{{false}}">
+                  <div style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; border: 1px solid #FCE3B0; background: #FFFAEB; color: #B54708; font-size: 13px; font-weight: 600">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 3 2 21h20zM12 10v5M12 18h.01"></path></svg>{{ed.conflict}}</div>
+                </sc-if>
+              </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 8px">
+              <span style="font-size: 14px; font-weight: 700">En el mural</span>
+              <div style="background: #FFFFFF; border: 1px solid #EAECF0; border-radius: 14px; display: flex; flex-direction: column">
+                <div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid #F0F1F4">
+                  <button type="button" role="switch" aria-checked="{{ed.priorityAttr}}" aria-label="Prioridad" onClick="{{ed.togglePriority}}" style="width: 40px; height: 24px; flex-shrink: 0; border-radius: 999px; border: 0; padding: 3px; background: {{ed.prioTrack}}; cursor: pointer; display: flex; justify-content: {{ed.prioJustify}}">
+                    <span style="width: 18px; height: 18px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 1px 2px rgba(16,24,40,0.2)"></span>
+                  </button>
+                  <span style="display: flex; flex-direction: column; gap: 1px">
+                    <span style="font-size: 14px; font-weight: 600">Prioridad</span>
+                    <span style="font-size: 12px; color: #667085">Sale primero y con bandera en el mural</span>
+                  </span>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 10px; padding: 12px 14px">
+                  <label class="fld" style="display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border: 1px solid #EAECF0; border-radius: 10px; background: #FFFFFF">
+                    <span style="font-size: 12px; font-weight: 600; color: #667085">Observación</span>
+                    <textarea rows="2" value="{{ed.obs}}" onInput="{{ed.setObs}}" placeholder="Algo que el equipo deba saber…" style="border: 0; outline: none; padding: 0; font: inherit; font-size: 14px; line-height: 1.5; color: #1B1F27; background: transparent; resize: vertical; min-width: 0"></textarea></label>
+                  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+                    <button type="button" role="switch" aria-checked="{{ed.muralAttr}}" aria-label="Mostrar la observación en el mural" onClick="{{ed.toggleMural}}" style="width: 40px; height: 24px; flex-shrink: 0; border-radius: 999px; border: 0; padding: 3px; background: {{ed.muralTrack}}; cursor: pointer; display: flex; justify-content: {{ed.muralJustify}}">
+                      <span style="width: 18px; height: 18px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 1px 2px rgba(16,24,40,0.2)"></span>
+                    </button>
+                    <span style="font-size: 14px; font-weight: 600; color: #344054">Mostrar en el mural hasta</span>
+                    <input type="date" value="{{ed.until}}" onInput="{{ed.setUntil}}" disabled="{{ed.muralOff}}" aria-label="Mostrar hasta" style="font: inherit; font-size: 13px; height: 32px; padding: 0 8px; border: 1px solid #EAECF0; border-radius: 8px; color: #344054; background: #FFFFFF">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <details style="background: #FFFFFF; border: 1px solid #EAECF0; border-radius: 14px">
+              <summary style="list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; font-size: 14px; font-weight: 700; cursor: pointer">
+                <span style="display: flex; align-items: center; gap: 8px">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#667085" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2"></path></svg>Historial de cambios</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#667085" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg>
+              </summary>
+              <ol style="list-style: none; margin: 0; padding: 4px 14px 14px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid #F0F1F4">
+                <sc-for list="{{ed.history}}" as="h" hint-placeholder-count="3">
+                  <li style="display: flex; flex-direction: column; gap: 2px; padding-top: 8px; font-size: 13px">
+                    <span><strong>{{h.who}}</strong> {{h.what}}</span>
+                    <span style="color: #667085">{{h.when}}</span>
+                  </li>
+                </sc-for>
+              </ol>
+            </details>
+          </div>
+
+          <div style="padding: 14px 20px; border-top: 1px solid #EAECF0; display: flex; align-items: center; gap: 12px">
+            <button type="button" onClick="{{archive}}" style="height: 40px; padding: 0 4px; border: 0; background: transparent; font: inherit; font-size: 14px; font-weight: 600; color: #475467; cursor: pointer">Archivar</button>
+            <span style="margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 13px; color: #667085">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0B7A68" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"></path></svg>Guardado</span>
+            <button type="button" onClick="{{close}}" style="height: 40px; padding: 0 20px; border: 0; border-radius: 10px; background: #1B1F27; color: #FFFFFF; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer">Listo</button>
+          </div>
+        </aside>
+      </sc-if>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"abierto":{"editor":"int","min":0,"max":18,"default":0},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const p = (id, c, name, kwp, sale, place, crew, start, end, status, obs, mural, priority, pause) => ({
+      id, contractor: c, name, kwp, sale, place, crew, start, end, status,
+      obs: obs || '', mural: !!mural, until: mural ? '2026-10-30' : '', priority: !!priority, pause: pause || '', lead: ''
+    });
+    // Preparación según los audios: tipo de sistema y tres marcas (la carta EDE solo aplica a medición neta)
+    const pr = (tipo, planos, mat, ede) => ({ tipo, prep: { planos, mat, ede } });
+    const PREP = {
+      1: pr('hibrido', true, true, false), 2: pr('neta', true, true, true), 3: pr('hibrido', true, true, false),
+      4: pr('neta', true, true, true), 5: pr('neta', true, true, true), 6: pr('neta', true, false, true),
+      7: pr('hibrido', true, true, false), 8: pr('neta', true, true, true), 9: pr('neta', true, true, true),
+      10: pr('neta', true, false, false), 11: pr('hibrido', false, false, false), 12: pr('neta', true, true, false),
+      13: pr('neta', true, true, false), 14: pr('hibrido', true, false, false), 15: pr('neta', true, true, true),
+      16: pr('hibrido', true, true, false), 17: pr('neta', true, true, true), 18: pr('neta', true, true, true)
+    };
+    this.state = {
+      filter: 'Todos',
+      seq: 100,
+      editId: Number(props.abierto ?? 0) || 0,
+      rows: [
+        p(1, 'EcoSur', 'Colegio Arcoíris', '97.28', '2026-10-13', 'La Romana', 'E1', '2026-10-19', '2026-10-30', 'En obra', '', false, true),
+        p(2, 'Electsun', 'Taller Motormax', '73.08', '2026-09-23', 'Punta Cana', 'E2', '2026-10-19', '2026-11-06', 'En obra', 'Faltan grapas; llegan mié 28 en la mañana', true),
+        p(3, 'Electsun', 'Granja Los Pinos', '12.29', '2026-07-27', 'Monte Cristi', 'E3', '2026-10-22', '2026-10-26', 'En obra'),
+        p(4, 'Enerval', 'Carla Méndez', '13.00', '2026-10-05', 'Santo Domingo', 'E3', '2026-10-29', '2026-10-29', 'Programado', 'Se instala primero la parte 1 (8 paneles)', true),
+        p(5, 'Enerval', 'Tomás Rivera', '12.35', '2026-10-05', 'Santo Domingo', 'E3', '2026-10-30', '2026-10-30', 'Programado', 'Se instala primero la parte 1 (11 paneles)', true),
+        p(6, 'Compusol', 'Lucía Esther Gómez Paredes', '8.19', '2026-10-12', 'Santo Domingo', 'E1', '2026-11-02', '2026-11-02', 'Programado'),
+        p(7, 'Evolta', 'Rafael Castillo Medina', '17.26', '2026-10-15', 'La Vega', 'E3', '2026-11-03', '2026-11-04', 'Programado'),
+        p(8, 'Compusol', 'Andrés Polanco Ruiz', '15.24', '2026-10-09', 'Santo Domingo', 'E1', '2026-11-04', '2026-11-06', 'Programado'),
+        p(9, 'Compusol', 'Sr. Herrera', '17.00', '2026-10-13', 'Punta Cana', 'E3', '2026-11-05', '2026-11-06', 'Programado'),
+        p(10, 'Electsun', 'Paola Núñez', '6.77', '2026-10-09', 'Santo Domingo Norte', '', '', '', 'Por programar', '', false, true),
+        p(11, 'Evolta', 'Kevin Almánzar', '5.36', '2026-10-12', 'Haina', '', '', '', 'Por programar'),
+        p(12, 'Evolta', 'Héctor Liriano Sosa', '7.14', '2026-10-13', 'San Cristóbal', '', '', '', 'En pausa', '', false, false, 'Esperando documentos del cliente'),
+        p(13, 'Evolta', 'Oficina Evolta', '6.50', '2026-10-17', 'Santo Domingo', '', '', '', 'Por programar'),
+        p(14, 'Evolta', 'Proyecto Elena Cabrera', '12.70', '2026-10-17', 'Arroyo Hondo', '', '', '', 'Por programar'),
+        p(15, 'Evolta', 'Villa Serena (Mario Abreu)', '14.61', '2026-10-17', 'Santo Domingo Este', '', '', '', 'Por programar'),
+        p(16, 'EcoSur', 'Lácteos del Valle', '69.12', '2026-09-10', 'La Romana', 'E2', '2026-09-14', '2026-09-25', 'Terminado'),
+        p(17, 'Compusol', 'Panadería La Espiga', '17.60', '2026-09-10', 'Santiago', 'E1', '2026-09-02', '2026-09-04', 'Terminado'),
+        p(18, 'Compusol', 'Dulcería Mirabal', '8.61', '2026-09-09', 'Bonao', 'E3', '2026-10-05', '2026-10-06', 'Esperando medidor')
+      ].map((r) => ({ ...r, ...(PREP[r.id] || { tipo: 'neta', prep: { planos: true, mat: true, ede: true } }) }))
+    };
+  }
+  update(id, patch) {
+    this.setState({ rows: this.state.rows.map((r) => (r.id === id ? { ...r, ...patch } : r)) });
+  }
+  renderVals() {
+    const DOT = { 'Electsun': '#0EA5E9', 'Compusol': '#EA580C', 'EcoSur': '#CA8A04', 'Enerval': '#7C3AED', 'Evolta': '#16A34A' };
+    const LEADS = { E1: 'Ramón Tejada', E2: 'Juan Carlos Méndez', E3: 'Pedro Almonte', '': 'Yokasta Rodríguez' };
+    const ST = {
+      'Por programar': { fg: '#3F4859', bg: '#EFF1F5', dot: '#8B95A7' },
+      'Programado': { fg: '#3538CD', bg: '#EEF0FE', dot: '#6172F3' },
+      'En obra': { fg: '#095C4F', bg: '#E0F4EF', dot: '#0B7A68' },
+      'En pausa': { fg: '#A11C47', bg: '#FDECF1', dot: '#D63B6A' },
+      'Terminado': { fg: '#1F2A3D', bg: '#E8ECF2', dot: '#2B3A55' },
+      'Esperando medidor': { fg: '#155E75', bg: '#E3F1F5', dot: '#0E7490' }
+    };
+    const order = ['En obra', 'Programado', 'Por programar', 'En pausa', 'Terminado', 'Esperando medidor'];
+    const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    const short = (iso) => (iso ? Number(iso.slice(8, 10)) + ' ' + MES[Number(iso.slice(5, 7)) - 1] : '');
+    const st = this.state;
+    const base = new Date('2026-10-26T00:00:00');
+    const wd = (iso) => {
+      const diff = Math.round((new Date(iso + 'T00:00:00') - base) / 86400000);
+      const w = Math.floor(diff / 7);
+      const dow = ((diff % 7) + 7) % 7;
+      return w * 6 + Math.min(dow, 5);
+    };
+    const filters = ['Todos'].concat(order).map((k) => {
+      const on = st.filter === k;
+      const count = k === 'Todos' ? st.rows.length : st.rows.filter((r) => r.status === k).length;
+      return {
+        label: k, count: String(count), pressed: on ? 'true' : 'false',
+        dot: k === 'Todos' ? '#1B1F27' : ST[k].dot,
+        fg: on ? '#1B1F27' : '#667085', weight: on ? 700 : 600, line: on ? '#EA6A1F' : 'transparent',
+        countFg: on ? '#9A3412' : '#475467', countBg: on ? '#FFF1E7' : '#F2F4F7',
+        pick: () => this.setState({ filter: k })
+      };
+    });
+    // Días laborables (lun–sáb) y "hoy" fijo para la demo
+    const TODAY = '2026-10-27';
+    const DOW = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+    const iso = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const addWd = (startIso, n) => { const d = new Date(startIso + 'T00:00:00'); let left = n - 1; while (left > 0) { d.setDate(d.getDate() + 1); if (d.getDay() !== 0) left--; } return iso(d); };
+    const countWd = (a, b) => { if (!a || !b || b < a) return 0; const d = new Date(a + 'T00:00:00'); let n = 0; while (iso(d) <= b) { if (d.getDay() !== 0) n++; d.setDate(d.getDate() + 1); } return n; };
+    const longDay = (x) => { const d = new Date(x + 'T00:00:00'); return DOW[d.getDay()] + ' ' + d.getDate() + ' ' + MES[d.getMonth()]; };
+    const lateDays = (r) => (r.status === 'En obra' && r.end && r.end < TODAY ? countWd(r.end, TODAY) - 1 : 0);
+    const missing = (r) => [!r.prep.planos && 'planos', !r.prep.mat && 'material', r.tipo === 'neta' && !r.prep.ede && 'EDE'].filter(Boolean);
+    const waitText = (r) => { const m = missing(r); return m.length ? 'Espera ' + m.join(' y ') : 'Lista para programar'; };
+    const setPrep = (r, k) => () => this.update(r.id, { prep: { ...r.prep, [k]: !r.prep[k] } });
+    const prepDefs = (r) => [
+      { k: 'planos', short: 'PL', title: 'Planos y BOM', hint: 'Plano de instalación y lista de materiales' },
+      { k: 'mat', short: 'MA', title: 'Materiales completos', hint: 'Almacén confirma que está todo' },
+      { k: 'ede', short: 'EDE', title: 'Carta de no objeción', hint: r.tipo === 'neta' ? 'La EDE aprobó la medición neta' : 'No aplica a sistemas híbridos' }
+    ].map((d) => {
+      const na = d.k === 'ede' && r.tipo !== 'neta', ok = !na && !!r.prep[d.k];
+      return {
+        ...d, na, ok, pressed: ok ? 'true' : 'false', title: na ? d.title + ' (no aplica)' : d.title, toggle: setPrep(r, d.k),
+        bg: na ? '#F9FAFB' : (ok ? '#E7F7EE' : '#FFFFFF'), fg: na ? '#98A2B3' : (ok ? '#157F3D' : '#B54708'),
+        border: na ? '#EAECF0' : (ok ? '#BFE6CC' : '#F7C97E'), borderStyle: ok || na ? 'solid' : 'dashed', cursor: na ? 'default' : 'pointer',
+        rowBg: na ? '#F9FAFB' : '#FFFFFF', rowBorder: na ? '#F0F1F4' : (ok ? '#D7EFE0' : '#F6DDB3'),
+        boxBg: ok ? '#16A34A' : '#FFFFFF', boxBorder: na ? '#D0D5DD' : (ok ? '#16A34A' : '#F59E0B')
+      };
+    });
+    const warningOf = (r) => {
+      if (r.start && r.sale && r.start < r.sale) return 'El inicio es anterior a la fecha de venta. Revisa las fechas.';
+      if (r.start && r.end && r.end < r.start) return 'La fecha de fin es anterior al inicio.';
+      if (r.status === 'Programado' && (!r.start || !r.crew)) return 'Para estar Programado necesita fecha de inicio y equipo.';
+      if (r.status === 'En pausa' && !r.pause) return 'Falta el motivo de la pausa.';
+      if (r.status === 'Programado' && missing(r).length) return 'Programado con preparación pendiente: falta ' + missing(r).join(' y ') + '.';
+      return '';
+    };
+    const visible = st.rows.filter((r) => st.filter === 'Todos' || r.status === st.filter);
+    const MONO = {
+      'Electsun': ['EL', '#E0F2FE', '#0369A1'], 'Compusol': ['CO', '#FFEDD5', '#9A3412'], 'EcoSur': ['EC', '#FEF3C7', '#854D0E'],
+      'Enerval': ['EN', '#EDE9FE', '#6D28D9'], 'Evolta': ['EV', '#DCFCE7', '#15803D']
+    };
+    const rows = visible.map((r, i) => {
+      const s = ST[r.status];
+      const warning = warningOf(r);
+      const sel = r.id === st.editId;
+      const m = MONO[r.contractor] || ['··', '#F2F4F7', '#475467'];
+      return {
+        ...r,
+        num: String(i + 1),
+        mono: m[0], mBg: m[1], mFg: m[2],
+        cDot: DOT[r.contractor] || '#98A2B3',
+        rowBg: r.status === 'En pausa' ? '#FFF8FA' : (sel ? '#FFF6EF' : '#FFFFFF'),
+        crewFg: r.crew ? '#1F2A3D' : '#667085', crewBg: r.crew ? '#E8ECF2' : '#F2F4F7',
+        startFg: r.start ? '#344054' : '#98A2B3', endFg: r.end ? '#344054' : '#98A2B3',
+        datesFg: r.start ? '#344054' : '#98A2B3',
+        currentAttr: sel ? 'true' : 'false',
+        selShadow: sel ? 'inset 3px 0 0 #C2410C' : 'none',
+        sFg: s.fg, sBg: s.bg, sDot: s.dot,
+        crewLabel: r.crew || 'sin equipo',
+        datesShort: r.start ? (r.start === r.end || !r.end ? short(r.start) : short(r.start) + ' – ' + short(r.end)) : waitText(r),
+        prepChips: prepDefs(r),
+        isLate: lateDays(r) > 0, lateShort: 'Atrasada · +' + lateDays(r),
+        setTipo: (e) => this.update(r.id, { tipo: e.target.value }),
+        selBg: sel ? '#FFF6EF' : '#FFFFFF',
+        selBar: sel ? '#C2410C' : 'transparent',
+        priorityAttr: r.priority ? 'true' : 'false',
+        prioBg: r.priority ? '#1F2A3D' : 'transparent',
+        prioFill: r.priority ? '#FFFFFF' : 'none',
+        prioStroke: r.priority ? '#FFFFFF' : '#98A2B3',
+        hasObs: !!r.obs,
+        obsText: r.status === 'En pausa' && r.pause ? 'Pausa: ' + r.pause : (r.obs || '—'),
+        obsFg: r.obs || r.pause ? '#344054' : '#98A2B3',
+        muralAttr: r.mural ? 'true' : 'false',
+        muralBg: r.mural ? '#FFF4EC' : '#FFFFFF',
+        muralBorder: r.mural ? '#F6C9A8' : '#EAECF0',
+        muralStroke: r.mural ? '#C2410C' : '#98A2B3',
+        dateBorder: warning ? '#FDB022' : 'transparent',
+        hasWarning: !!warning, warning,
+        open: () => this.setState({ editId: r.id }),
+        togglePriority: () => this.update(r.id, { priority: !r.priority }),
+        toggleMural: () => this.update(r.id, { mural: !r.mural }),
+        setName: (e) => this.update(r.id, { name: e.target.value }),
+        setStart: (e) => this.update(r.id, { start: e.target.value }),
+        setEnd: (e) => this.update(r.id, { end: e.target.value }),
+        setCrew: (e) => this.update(r.id, { crew: e.target.value }),
+        setStatus: (e) => this.update(r.id, { status: e.target.value })
+      };
+    });
+    const crewOptions = [['', 'Sin equipo'], ['E1', 'E1'], ['E2', 'E2'], ['E3', 'E3']].map(([v, label]) => ({ v, label }));
+    const statusOptions = order.map((v) => ({ v }));
+    const companyOptions = Object.keys(DOT).map((v) => ({ v }));
+    const leadOptions = ['Yokasta Rodríguez', 'Ramón Tejada', 'Juan Carlos Méndez', 'Pedro Almonte', 'Carlos Batista'].map((v) => ({ v }));
+
+    const cur = st.rows.find((r) => r.id === st.editId);
+    let ed = {};
+    if (cur) {
+      const set = (field) => (e) => this.update(cur.id, { [field]: e.target.value });
+      let inRange = false, barLeft = '0%', barWidth = '0%', rangeText = 'Sin fecha: no aparece en el calendario', rangeFg = '#667085';
+      if (cur.start) {
+        const s = wd(cur.start);
+        const e = cur.end ? wd(cur.end) : s;
+        if (e < 0 || s > 11) {
+          rangeText = 'Fuera de las próximas dos semanas';
+        } else {
+          const cs = Math.max(0, s);
+          const ce = Math.min(11, e);
+          inRange = true;
+          barLeft = (cs / 12 * 100).toFixed(2) + '%';
+          barWidth = ((ce - cs + 1) / 12 * 100).toFixed(2) + '%';
+          rangeText = short(cur.start) + (cur.end && cur.end !== cur.start ? ' – ' + short(cur.end) : '') + (cur.crew ? ' · ' + cur.crew : ' · sin equipo');
+          rangeFg = '#344054';
+        }
+      }
+      const clash = cur.crew && cur.start ? st.rows.find((o) => o.id !== cur.id && o.crew === cur.crew && o.start && o.status !== 'Terminado' && o.start <= (cur.end || cur.start) && (o.end || o.start) >= cur.start) : null;
+      const k = ST[cur.status];
+      const late = lateDays(cur), miss = missing(cur);
+      ed = {
+        ...cur,
+        tipos: [['neta', 'Medición neta'], ['hibrido', 'Híbrido']].map(([v, label]) => {
+          const on = cur.tipo === v;
+          return { label, pressed: on ? 'true' : 'false', bg: on ? '#FFFFFF' : 'transparent', shadow: on ? '0 1px 2px rgba(16,24,40,0.1)' : 'none', fg: on ? '#1B1F27' : '#475467', pick: () => this.update(cur.id, { tipo: v }) };
+        }),
+        prepItems: prepDefs(cur),
+        prepText: miss.length ? waitText(cur) : 'Completa', prepFg: miss.length ? '#B54708' : '#157F3D', prepBg: miss.length ? '#FFFAEB' : '#E7F7EE',
+        dias: cur.start && cur.end ? countWd(cur.start, cur.end) : '',
+        setDias: (e) => { const n = Math.max(1, Number(e.target.value) || 1); if (cur.start) this.update(cur.id, { end: addWd(cur.start, n) }); },
+        finText: cur.end ? longDay(cur.end) : 'pon inicio y días',
+        isLate: late > 0,
+        lateText: 'Atrasada ' + late + (late === 1 ? ' día' : ' días') + ': debía terminar el ' + (cur.end ? longDay(cur.end) : ''),
+        lead: cur.lead || LEADS[cur.crew] || LEADS[''],
+        paused: cur.status === 'En pausa',
+        statuses: order.map((label) => {
+          const on = cur.status === label;
+          return { label, pressed: on ? 'true' : 'false', dot: ST[label].dot, fg: on ? ST[label].fg : '#475467', bg: on ? ST[label].bg : '#FFFFFF', border: on ? ST[label].dot : '#EAECF0', pick: () => this.update(cur.id, { status: label }) };
+        }),
+        inRange, barLeft, barWidth, rangeText, rangeFg,
+        barTint: k.bg, barSolid: k.dot,
+        hasConflict: !!clash,
+        conflict: clash ? cur.crew + ' ya está en ' + clash.name + ' esos días' : '',
+        mono: (MONO[cur.contractor] || ['··'])[0], mBg: (MONO[cur.contractor] || [0, '#F2F4F7'])[1], mFg: (MONO[cur.contractor] || [0, 0, '#475467'])[2],
+        muralAttr: cur.mural ? 'true' : 'false', muralOff: !cur.mural,
+        muralTrack: cur.mural ? '#1F2A3D' : '#D0D5DD', muralJustify: cur.mural ? 'flex-end' : 'flex-start',
+        priorityAttr: cur.priority ? 'true' : 'false',
+        prioTrack: cur.priority ? '#1F2A3D' : '#D0D5DD',
+        prioJustify: cur.priority ? 'flex-end' : 'flex-start',
+        history: [
+          { who: 'Yokasta Rodríguez', what: 'cambió el estado a ' + cur.status, when: 'Lun 19 oct 07:30' },
+          { who: 'Jefe', what: cur.crew ? 'asignó ' + cur.crew + ' y las fechas' : 'revisó el proyecto', when: 'Vie 16 oct 16:10' },
+          { who: 'Miguel Fermín', what: 'creó el proyecto', when: short(cur.sale) || '—' }
+        ],
+        setName: set('name'), setKwp: set('kwp'), setPlace: set('place'), setSale: set('sale'),
+        setLead: set('lead'), setPause: set('pause'), setCrew: set('crew'), setStart: set('start'), setEnd: set('end'),
+        setObs: set('obs'), setUntil: set('until'),
+        setContractor: set('contractor'),
+        togglePriority: () => this.update(cur.id, { priority: !cur.priority }),
+        toggleMural: () => this.update(cur.id, { mural: !cur.mural })
+      };
+    }
+    const addRow = () => this.setState({
+      filter: 'Todos',
+      seq: st.seq + 1,
+      editId: st.seq,
+      rows: [{ id: st.seq, contractor: 'Electsun', name: 'Nuevo proyecto', kwp: '', sale: '2026-10-27', place: '', crew: '', start: '', end: '', status: 'Por programar', obs: '', mural: false, until: '', priority: false, pause: '', lead: '' }].concat(st.rows)
+    });
+    return {
+      filters, rows, crewOptions, statusOptions, companyOptions, leadOptions, addRow, ed,
+      full: !cur, compact: !!cur,
+      close: () => this.setState({ editId: 0 }),
+      archive: () => this.setState({ rows: this.state.rows.filter((r) => r.id !== this.state.editId), editId: 0 })
+    };
+  }
+}
+</script>
+</body>
+</html>

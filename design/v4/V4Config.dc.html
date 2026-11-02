@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Configurar mural</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap">
+<style>
+body{margin:0;background:#F4F5F7}
+a{color:#C2410C}a:hover{color:#9A3412}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #F4F5F7; color: #1B1F27; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; display: flex; flex-wrap: wrap; align-items: flex-start">
+  <div style="flex: 0 0 auto; padding: 20px 0 20px 20px">
+    <dc-import name="V4Dock" active="mural" hint-size="84px,520px"></dc-import>
+  </div>
+
+  <main style="flex: 999 1 560px; min-width: 0; padding: 24px 28px 40px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box">
+    <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px">
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <h1 style="margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.02em">Mural</h1>
+        <span style="font-size: 14px; color: #475467">Qué se ve en las TV de la empresa. Los datos salen de la tabla de Proyectos.</span>
+      </div>
+      <a href="{{fullHref}}" style="display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 16px; border-radius: 10px; background: #1B1F27; color: #FFFFFF; font-size: 14px; font-weight: 700; text-decoration: none">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path></svg>Abrir en pantalla completa</a>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start">
+      <div style="flex: 1 1 360px; max-width: 440px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+
+        <section style="background: #FFFFFF; border: 1px solid #EAECF0; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 10px">
+          <h2 style="margin: 0; font-size: 16px; font-weight: 800">Diseño del mural</h2>
+          <sc-for list="{{designs}}" as="d" hint-placeholder-count="2">
+            <button type="button" onClick="{{d.pick}}" aria-pressed="{{d.pressed}}" style="display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 12px; border: 1.5px solid {{d.border}}; background: {{d.bg}}; font: inherit; text-align: left; cursor: pointer; color: #1B1F27">
+              <span style="width: 18px; height: 18px; flex-shrink: 0; border-radius: 50%; box-sizing: border-box; border: {{d.ring}}; background: #FFFFFF"></span>
+              <span style="display: flex; flex-direction: column; gap: 2px">
+                <span style="font-size: 14px; font-weight: 800">{{d.label}}</span>
+                <span style="font-size: 12px; color: #475467">{{d.hint}}</span>
+              </span>
+            </button>
+          </sc-for>
+        </section>
+
+        <section style="background: #FFFFFF; border: 1px solid #EAECF0; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 12px">
+          <h2 style="margin: 0; font-size: 16px; font-weight: 800">Enlace para la TV</h2>
+          <div style="display: flex; gap: 8px">
+            <span style="flex: 1; min-width: 0; height: 40px; display: flex; align-items: center; padding: 0 12px; border: 1px solid #EAECF0; border-radius: 10px; background: #F9FAFB; font-size: 14px; color: #344054; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">[Enlace del mural]</span>
+            <button type="button" style="height: 40px; padding: 0 14px; border: 1px solid #D0D5DD; border-radius: 10px; background: #FFFFFF; font: inherit; font-size: 14px; font-weight: 700; color: #344054; cursor: pointer">Copiar</button>
+          </div>
+          <span style="font-size: 13px; color: #475467; line-height: 1.5">Ábrelo en el navegador de la TV. Se actualiza solo cada minuto y no necesita usuario.</span>
+        </section>
+
+        <section style="background: #FFFFFF; border: 1px solid #EAECF0; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 12px">
+          <h2 style="margin: 0; font-size: 16px; font-weight: 800">Timeline</h2>
+          <div role="group" aria-label="Semanas visibles" style="display: flex; padding: 3px; background: #F2F4F7; border-radius: 10px">
+            <sc-for list="{{ranges}}" as="r" hint-placeholder-count="3">
+              <button type="button" onClick="{{r.pick}}" aria-pressed="{{r.pressed}}" style="flex: 1; height: 36px; border: 0; border-radius: 8px; background: {{r.bg}}; box-shadow: {{r.shadow}}; font: inherit; font-size: 14px; font-weight: {{r.weight}}; color: {{r.fg}}; cursor: pointer">{{r.label}}</button>
+            </sc-for>
+          </div>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700; color: #344054">Orden de los próximos
+            <select style="font: inherit; font-size: 14px; height: 40px; padding: 0 10px; border: 1px solid #D0D5DD; border-radius: 10px; background: #FFFFFF"><option>Por fecha de inicio</option><option>Prioridad primero</option></select></label>
+        </section>
+
+        <section style="background: #FFFFFF; border: 1px solid #EAECF0; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 6px">
+          <h2 style="margin: 0 0 6px; font-size: 16px; font-weight: 800">Qué mostrar</h2>
+          <sc-for list="{{toggles}}" as="t" hint-placeholder-count="5">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid #F0F1F4">
+              <span style="display: flex; flex-direction: column; gap: 1px">
+                <span style="font-size: 14px; font-weight: 700">{{t.label}}</span>
+                <span style="font-size: 12px; color: #475467">{{t.hint}}</span>
+              </span>
+              <button type="button" role="switch" aria-checked="{{t.attr}}" aria-label="{{t.label}}" onClick="{{t.toggle}}" style="flex-shrink: 0; width: 44px; height: 26px; border-radius: 999px; border: 0; padding: 3px; background: {{t.track}}; cursor: pointer; display: flex; justify-content: {{t.justify}}">
+                <span style="width: 20px; height: 20px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 1px 2px rgba(16,24,40,0.2)"></span>
+              </button>
+            </div>
+          </sc-for>
+        </section>
+
+        <section style="background: #FFFFFF; border: 1px solid #EAECF0; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 10px">
+          <h2 style="margin: 0; font-size: 16px; font-weight: 800">Avisos generales</h2>
+          <span style="font-size: 13px; color: #475467">Para avisos que no son de un proyecto. Las observaciones de cada proyecto se marcan en la tabla.</span>
+          <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: #F9FAFB; border: 1px solid #EAECF0">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background: #EA6A1F; flex-shrink: 0"></span>
+            <span style="flex: 1; display: flex; flex-direction: column">
+              <span style="font-size: 14px; font-weight: 700">Reunión de seguridad el lunes 7:30 a. m.</span>
+              <span style="font-size: 12px; color: #475467">Visible hasta el lun 2 nov</span>
+            </span>
+            <button type="button" aria-label="Quitar aviso" style="width: 28px; height: 28px; border: 0; border-radius: 8px; background: transparent; color: #667085; cursor: pointer; display: flex; align-items: center; justify-content: center">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg></button>
+          </div>
+          <div style="display: flex; gap: 8px">
+            <input type="text" aria-label="Nuevo aviso" placeholder="Escribe un aviso…" style="flex: 1; min-width: 0; font: inherit; font-size: 14px; height: 40px; padding: 0 12px; border: 1px solid #D0D5DD; border-radius: 10px">
+            <button type="button" style="height: 40px; padding: 0 14px; border: 0; border-radius: 10px; background: #1B1F27; color: #FFFFFF; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer">Agregar</button>
+          </div>
+        </section>
+      </div>
+
+      <section aria-label="Vista previa" style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 10px">
+        <div style="display: flex; align-items: center; justify-content: space-between">
+          <span style="font-size: 16px; font-weight: 800">Vista previa</span>
+          <span style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #095C4F"><span style="width: 8px; height: 8px; border-radius: 50%; background: #0B7A68"></span>En vivo</span>
+        </div>
+        <div style="width: 864px; max-width: 100%; height: 486px; border-radius: 16px; overflow: hidden; border: 8px solid #1B1F27; box-shadow: 0 12px 30px rgba(16,24,40,0.15); background: #F4F5F7">
+          <div style="width: 1920px; height: 1080px; transform: scale(0.435); transform-origin: top left">
+            <sc-if value="{{showP}}" hint-placeholder-val="{{true}}">
+              <dc-import name="V4MuralPrincipal" hint-size="1920px,1080px"></dc-import>
+            </sc-if>
+            <sc-if value="{{showA}}" hint-placeholder-val="{{false}}">
+              <dc-import name="V4Mural" hint-size="1920px,1080px"></dc-import>
+            </sc-if>
+          </div>
+        </div>
+        <span style="font-size: 13px; color: #475467">Si la TV pierde internet, sigue mostrando los últimos datos con la hora de la última actualización.</span>
+      </section>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { design: 3, range: 2, on: { waiting: true, notes: true, prio: true, clock: true, kwp: false } };
+  }
+  renderVals() {
+    const designs = [
+      { n: 3, label: 'Principal · tabla + calendario (claro)', hint: 'El formato recomendado para la TV' },
+      { n: 1, label: 'Timeline en cada fila', hint: 'Iteración 1 · la tabla y la barra en la misma línea' }
+    ].map((d) => {
+      const on = this.state.design === d.n;
+      return { ...d, pressed: on ? 'true' : 'false', border: on ? '#1B1F27' : '#EAECF0', bg: on ? '#F9FAFB' : '#FFFFFF', ring: on ? '6px solid #1B1F27' : '2px solid #D0D5DD', pick: () => this.setState({ design: d.n }) };
+    });
+    const showP = this.state.design === 3;
+    const ranges = [2, 3, 4].map((n) => {
+      const on = this.state.range === n;
+      return { label: n + ' semanas', pressed: on ? 'true' : 'false', bg: on ? '#FFFFFF' : 'transparent', shadow: on ? '0 1px 2px rgba(16,24,40,0.08)' : 'none', weight: on ? 700 : 600, fg: on ? '#1B1F27' : '#475467', pick: () => this.setState({ range: n }) };
+    });
+    const defs = [
+      ['waiting', 'Esperando fecha', 'Proyectos vendidos sin programar'],
+      ['notes', 'Observaciones', 'Las marcadas con la pantalla en la tabla'],
+      ['prio', 'Bandera de prioridad', 'Marca los proyectos que el jefe priorizó'],
+      ['clock', 'Reloj y fecha', 'Arriba a la derecha'],
+      ['kwp', 'kWp por proyecto', 'Apagado para no saturar']
+    ];
+    const toggles = defs.map(([k, label, hint]) => {
+      const on = !!this.state.on[k];
+      return { label, hint, attr: on ? 'true' : 'false', track: on ? '#1F2A3D' : '#D0D5DD', justify: on ? 'flex-end' : 'flex-start', toggle: () => this.setState({ on: { ...this.state.on, [k]: !this.state.on[k] } }) };
+    });
+    return { ranges, toggles, designs, showP, showA: this.state.design === 1, fullHref: showP ? 'V4MuralPrincipal.dc.html' : 'V4Mural.dc.html' };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+# Solo el build usa la red del host: evita el DNS roto del bridge de Docker local.
+services:
+  planner-api:
+    build:
+      context: .
+      network: host

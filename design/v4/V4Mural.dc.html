@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Mural · Versión simple</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1920px; height: 1080px; box-sizing: border-box; padding: 40px 48px; background: #F4F5F7; color: #1B1F27; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; font-variant-numeric: tabular-nums; display: flex; flex-direction: column; gap: 20px; overflow: hidden">
+
+  <header style="height: 88px; display: flex; align-items: center; justify-content: space-between; gap: 32px">
+    <div style="display: flex; align-items: center; gap: 18px">
+      <div style="width: 64px; height: 64px; border-radius: 18px; background: #EA6A1F; display: flex; align-items: center; justify-content: center">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"></circle><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"></path></svg>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <span style="font-size: 40px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.05">Proyectos</span>
+        <span style="display: flex; gap: 22px; font-size: 22px; font-weight: 700">
+          <span style="color: #095C4F">3 en obra</span>
+          <span style="color: #3538CD">6 programados</span>
+          <span style="color: #3F4859">6 esperando fecha</span>
+        </span>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 28px">
+      <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px">
+        <span style="font-size: 24px; font-weight: 700">{{dateText}}</span>
+        <span style="font-size: 22px; font-weight: 500; color: #5F6675">Actualizado a las 11:40</span>
+      </div>
+      <span style="font-size: 68px; font-weight: 800; letter-spacing: -0.03em; line-height: 1">{{clock}}</span>
+    </div>
+  </header>
+
+  <section aria-label="Proyectos y timeline" style="flex: 1; min-height: 0; background: #FFFFFF; border-radius: 24px; padding: 14px 24px; box-sizing: border-box; display: flex; flex-direction: column">
+    <div style="height: 66px; display: grid; grid-template-columns: 72px minmax(0, 1fr) 200px 1120px; column-gap: 16px; align-items: end; border-bottom: 2px solid #E4E6EB">
+      <span style="font-size: 22px; font-weight: 700; color: #5F6675; padding-bottom: 10px">Equipo</span>
+      <span style="font-size: 22px; font-weight: 700; color: #5F6675; padding-bottom: 10px">Proyecto</span>
+      <span style="font-size: 22px; font-weight: 700; color: #5F6675; padding-bottom: 10px">Cuándo</span>
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr))">
+          <span style="font-size: 22px; font-weight: 800; color: #1B1F27; padding-left: 8px">Esta semana</span>
+          <span style="font-size: 22px; font-weight: 700; color: #5F6675; padding-left: 8px; border-left: 2px solid #D3D6DD">Próxima semana</span>
+          <span style="font-size: 22px; font-weight: 700; color: #5F6675; padding-left: 8px; border-left: 2px solid #D3D6DD">En 2 semanas</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(18, minmax(0, 1fr)); padding-bottom: 6px">
+          <sc-for list="{{days}}" as="d" hint-placeholder-count="18">
+            <span style="text-align: center; font-size: 22px; font-weight: {{d.fw}}; color: {{d.fg}}; background: {{d.bg}}; border-radius: 8px; margin: 0 2px">{{d.n}}</span>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <sc-for list="{{groups}}" as="g" hint-placeholder-count="2">
+      <div style="height: 40px; display: flex; align-items: center; gap: 12px">
+        <span style="width: 12px; height: 12px; border-radius: 4px; background: {{g.solid}}"></span>
+        <span style="font-size: 22px; font-weight: 800; letter-spacing: 0.14em; color: {{g.fg}}">{{g.label}}</span>
+      </div>
+      <sc-for list="{{g.rows}}" as="r" hint-placeholder-count="3">
+        <div style="height: {{g.rowH}}; display: grid; grid-template-columns: 72px minmax(0, 1fr) 200px 1120px; column-gap: 16px; align-items: center; border-top: 1px solid #EEF0F3">
+          <span style="width: 60px; height: {{g.badgeH}}; box-sizing: border-box; border-radius: 14px; background: {{g.badgeBg}}; border: 2px solid #1F2A3D; color: {{g.badgeFg}}; font-size: 24px; font-weight: 800; display: flex; align-items: center; justify-content: center">{{r.crew}}</span>
+          <span style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+            <span style="display: flex; align-items: center; gap: 10px; min-width: 0">
+              <span style="font-size: {{g.nameSize}}; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{r.name}}</span>
+              <sc-if value="{{r.priority}}" hint-placeholder-val="{{false}}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1F2A3D" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Prioridad" style="flex-shrink: 0"><path d="M5 21V4M5 4h11l-2 4 2 4H5"></path></svg></sc-if>
+            </span>
+            <span style="display: flex; align-items: center; gap: 8px; font-size: 22px; font-weight: 600; color: #5F6675; white-space: nowrap; overflow: hidden"><span style="width: 10px; height: 10px; flex-shrink: 0; border-radius: 50%; background: {{r.cDot}}"></span>{{r.place}}{{r.note}}</span>
+          </span>
+          <span style="display: flex; flex-direction: column; gap: 2px">
+            <span style="font-size: 24px; font-weight: 800; color: {{g.whenFg}}">{{r.when}}</span>
+            <span style="font-size: 22px; font-weight: 600; color: #5F6675">{{r.whenSub}}</span>
+          </span>
+          <div style="height: 100%; position: relative; background: repeating-linear-gradient(to right, transparent 0, transparent calc(5.5556% - 1px), #F0F1F4 calc(5.5556% - 1px), #F0F1F4 5.5556%)">
+            <div style="position: absolute; top: 0; bottom: 0; left: 5.5556%; width: 5.5556%; background: rgba(194,65,12,0.06)"></div>
+            <div style="position: absolute; top: 0; bottom: 0; left: 33.333%; width: 2px; background: #D3D6DD"></div>
+            <div style="position: absolute; top: 0; bottom: 0; left: 66.667%; width: 2px; background: #D3D6DD"></div>
+            <div style="position: absolute; top: 50%; transform: translateY(-50%); height: {{g.barH}}; left: {{r.left}}; width: {{r.width}}; box-sizing: border-box; border-radius: {{r.radius}}; background: {{g.solid}}; display: flex; align-items: center; padding: 0 12px; overflow: hidden">
+              <span style="font-size: 22px; font-weight: 800; color: #FFFFFF; white-space: nowrap">{{r.barText}}</span>
+            </div>
+            <div style="position: absolute; top: 0; bottom: 0; left: 8.333%; width: 2px; background: #C2410C"></div>
+          </div>
+        </div>
+      </sc-for>
+    </sc-for>
+  </section>
+
+  <footer style="height: 100px; flex-shrink: 0; display: flex; gap: 20px">
+    <div style="flex: 1.6; min-width: 0; background: #FFFFFF; border-radius: 22px; padding: 0 24px; display: flex; align-items: center; gap: 16px">
+      <span style="flex-shrink: 0; display: flex; flex-direction: column">
+        <span style="font-size: 22px; font-weight: 800; letter-spacing: 0.12em; color: #3F4859">ESPERANDO FECHA</span>
+        <span style="font-size: 22px; font-weight: 600; color: #5F6675">vendidos sin programar</span>
+      </span>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; max-height: 88px; overflow: hidden">
+        <sc-for list="{{waiting}}" as="w" hint-placeholder-count="6">
+          <span style="flex-shrink: 0; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border-radius: 12px; background: {{w.bg}}; font-size: 22px; font-weight: 700; color: {{w.fg}}; white-space: nowrap">
+            <sc-if value="{{w.priority}}" hint-placeholder-val="{{false}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1F2A3D" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Prioridad"><path d="M5 21V4M5 4h11l-2 4 2 4H5"></path></svg></sc-if>{{w.name}}<span style="font-weight: 600; opacity: 0.8">{{w.days}}</span></span>
+        </sc-for>
+      </div>
+    </div>
+    <div style="flex: 1; min-width: 0; background: #FFFFFF; border-radius: 22px; padding: 12px 24px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; gap: 6px">
+      <sc-for list="{{notes}}" as="n" hint-placeholder-count="2">
+        <span style="display: flex; align-items: center; gap: 12px; min-width: 0">
+          <span style="flex-shrink: 0; width: 10px; height: 10px; border-radius: 50%; background: #EA6A1F"></span>
+          <span style="font-size: 22px; font-weight: 800; white-space: nowrap">{{n.project}}</span>
+          <span style="font-size: 22px; font-weight: 600; color: #3F4859; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{n.text}}</span>
+        </span>
+      </sc-for>
+    </div>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  componentDidMount() {
+    this.timer = setInterval(() => this.forceUpdate(), 30000);
+  }
+  componentWillUnmount() {
+    clearInterval(this.timer);
+  }
+  renderVals() {
+    const now = new Date();
+    const pad = (v) => String(v).padStart(2, '0');
+    let dateText = now.toLocaleDateString('es-DO', { weekday: 'long', day: 'numeric', month: 'long' });
+    dateText = dateText.charAt(0).toUpperCase() + dateText.slice(1);
+    const nums = ['26', '27', '28', '29', '30', '31', '2', '3', '4', '5', '6', '7', '9', '10', '11', '12', '13', '14'];
+    const days = nums.map((n, i) => ({
+      n,
+      fw: i === 1 ? 800 : 600,
+      fg: i === 1 ? '#FFFFFF' : (i % 6 === 5 ? '#5F6675' : '#3F4859'),
+      bg: i === 1 ? '#C2410C' : 'transparent'
+    }));
+    const SPAN = 18;
+    const pc = (v) => (v / SPAN * 100).toFixed(3) + '%';
+    const bar = (s, e, text, fromBefore) => ({
+      left: pc(Math.max(0, s)), width: pc(e - Math.max(0, s) + 1),
+      radius: fromBefore ? '0 10px 10px 0' : '10px',
+      barText: text || ''
+    });
+    const obra = [
+      { crew: 'E1', name: 'Colegio Arcoíris', priority: true, place: 'La Romana', note: '', cDot: '#CA8A04', when: 'Día 9 de 12', whenSub: 'termina vie 30', ...bar(-7, 4, 'desde 19 oct', true) },
+      { crew: 'E2', name: 'Taller Motormax', priority: false, place: 'Punta Cana', note: '', cDot: '#0EA5E9', when: 'Día 9 de 19', whenSub: 'termina vie 6 nov', ...bar(-7, 10, 'desde 19 oct', true) },
+      { crew: 'E3', name: 'Granja Los Pinos', priority: false, place: 'Monte Cristi', note: '', cDot: '#0EA5E9', when: 'Día 6 de 7', whenSub: 'termina mañana', ...bar(-4, 2, 'desde 22 oct', true) }
+    ];
+    const prog = [
+      { crew: 'E3', name: 'Carla Méndez', priority: false, place: 'Santo Domingo', note: ' · parte 1', cDot: '#7C3AED', when: 'Jue 29 oct', whenSub: '1 día', ...bar(3, 3) },
+      { crew: 'E3', name: 'Tomás Rivera', priority: false, place: 'Santo Domingo', note: ' · parte 1', cDot: '#7C3AED', when: 'Vie 30 oct', whenSub: '1 día', ...bar(4, 4) },
+      { crew: 'E1', name: 'Lucía E. Gómez Paredes', priority: false, place: 'Santo Domingo', note: '', cDot: '#EA580C', when: 'Lun 2 nov', whenSub: '1 día', ...bar(6, 6) },
+      { crew: 'E3', name: 'Rafael Castillo Medina', priority: false, place: 'La Vega', note: '', cDot: '#16A34A', when: 'Mar 3 nov', whenSub: '2 días', ...bar(7, 8) },
+      { crew: 'E1', name: 'Andrés Polanco Ruiz', priority: false, place: 'Santo Domingo', note: '', cDot: '#EA580C', when: 'Mié 4 nov', whenSub: '3 días', ...bar(8, 10) },
+      { crew: 'E3', name: 'Sr. Herrera', priority: false, place: 'Punta Cana', note: '', cDot: '#EA580C', when: 'Jue 5 nov', whenSub: '2 días', ...bar(9, 10) }
+    ];
+    const groups = [
+      { label: 'EN OBRA', solid: '#0B7A68', fg: '#095C4F', whenFg: '#1B1F27', rowH: '76px', barH: '40px', nameSize: '30px', badgeH: '56px', badgeBg: '#1F2A3D', badgeFg: '#FFFFFF', rows: obra },
+      { label: 'PRÓXIMOS', solid: '#6172F3', fg: '#3538CD', whenFg: '#3538CD', rowH: '58px', barH: '30px', nameSize: '26px', badgeH: '42px', badgeBg: '#FFFFFF', badgeFg: '#1F2A3D', rows: prog }
+    ];
+    const waiting = [
+      { name: 'Paola Núñez', days: '18 d', priority: true, bg: '#EFF1F5', fg: '#1B1F27' },
+      { name: 'Kevin Almánzar', days: '15 d', priority: false, bg: '#EFF1F5', fg: '#1B1F27' },
+      { name: 'Villa Serena', days: '10 d', priority: false, bg: '#EFF1F5', fg: '#1B1F27' },
+      { name: 'Elena Cabrera', days: '10 d', priority: false, bg: '#EFF1F5', fg: '#1B1F27' },
+      { name: 'Oficina Evolta', days: '10 d', priority: false, bg: '#EFF1F5', fg: '#1B1F27' },
+      { name: 'Héctor L. · en pausa', days: '', priority: false, bg: '#FDECF1', fg: '#A11C47' }
+    ];
+    const notes = [
+      { project: 'Taller Motormax', text: 'Las grapas que faltan llegan el miércoles en la mañana' },
+      { project: 'Carla y Tomás', text: 'Esta semana solo se instala la parte 1' }
+    ];
+    return { clock: pad(now.getHours()) + ':' + pad(now.getMinutes()), dateText, days, groups, waiting, notes };
+  }
+}
+</script>
+</body>
+</html>

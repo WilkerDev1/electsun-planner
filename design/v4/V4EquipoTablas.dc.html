@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Equipo · Empleados, equipos y empresas</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap">
+<style>
+body{margin:0;background:#F4F5F7}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; align-items: flex-start; background: #F4F5F7; color: #1B1F27; font-family: 'Plus Jakarta Sans', system-ui, sans-serif">
+  <div style="flex: 0 0 auto; padding: 20px 0 20px 20px">
+    <dc-import name="V4Dock" active="equipo" hint-size="84px,520px"></dc-import>
+  </div>
+
+  <main style="flex: 999 1 560px; min-width: 0; padding: 24px 28px 40px; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box">
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <h1 style="margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.02em">Equipo</h1>
+      <span style="font-size: 14px; color: #475467">Las personas, los equipos de obra y las empresas que aparecen en Proyectos y en el mural.</span>
+    </div>
+
+    <section aria-label="Equipo" style="background: #FFFFFF; border: 1px solid #EAECF0; border-radius: 16px; overflow: hidden; box-shadow: 0 1px 2px rgba(16,24,40,0.04)">
+      <div role="tablist" aria-label="Secciones" style="display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid #EAECF0; overflow-x: auto">
+        <sc-for list="{{tabs}}" as="t" hint-placeholder-count="3">
+          <button type="button" role="tab" aria-selected="{{t.selected}}" onClick="{{t.pick}}" style="flex-shrink: 0; display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 10px; border: 0; border-bottom: 2px solid {{t.line}}; background: transparent; color: {{t.fg}}; font: inherit; font-size: 14px; font-weight: {{t.weight}}; cursor: pointer; white-space: nowrap">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{t.icon}}"></path></svg>{{t.label}}
+            <span style="font-size: 12px; font-weight: 700; color: {{t.countFg}}; background: {{t.countBg}}; border-radius: 6px; padding: 1px 7px">{{t.count}}</span></button>
+        </sc-for>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+          <label style="display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px; border: 1px solid #EAECF0; border-radius: 8px; background: #FFFFFF; width: 240px; max-width: 100%; box-sizing: border-box">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#667085" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+            <input type="search" aria-label="Buscar" placeholder="{{searchHint}}" style="border: 0; outline: none; font: inherit; font-size: 14px; flex: 1; min-width: 0; background: transparent">
+          </label>
+          <sc-if value="{{isEmp}}" hint-placeholder-val="{{true}}">
+            <div role="group" aria-label="Filtrar por nivel" style="display: flex; flex-wrap: wrap; gap: 6px">
+              <sc-for list="{{levelFilters}}" as="f" hint-placeholder-count="5">
+                <button type="button" onClick="{{f.pick}}" aria-pressed="{{f.pressed}}" style="height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid {{f.border}}; background: {{f.bg}}; color: {{f.fg}}; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer">{{f.label}}</button>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+        <button type="button" style="display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: #1B1F27; color: #FFFFFF; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>{{addLabel}}</button>
+      </div>
+
+      <sc-if value="{{isEmp}}" hint-placeholder-val="{{true}}">
+        <div style="overflow-x: auto; border-top: 1px solid #EAECF0">
+          <div role="table" aria-label="Empleados" style="min-width: 980px">
+            <sc-for list="{{groups}}" as="g" hint-placeholder-count="4">
+              <div role="row" style="height: 40px; display: grid; grid-template-columns: minmax(240px, 1.4fr) 170px 150px minmax(190px, 1fr) 130px 52px; align-items: center; background: #F9FAFB; border-bottom: 1px solid #EAECF0; font-size: 13px; font-weight: 600; color: #475467">
+                <span role="columnheader" style="display: flex; align-items: center; gap: 8px; padding: 0 16px">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{g.icon}}"></path></svg>
+                  <span style="color: #1B1F27; font-weight: 700">{{g.label}}</span>
+                  <span style="font-size: 12px; font-weight: 700; color: #475467; background: #EAECF0; border-radius: 6px; padding: 1px 7px">{{g.count}}</span>
+                </span>
+                <span role="columnheader" style="padding: 0 12px">Nivel</span>
+                <span role="columnheader" style="padding: 0 12px">Equipo</span>
+                <span role="columnheader" style="padding: 0 12px">Dónde está hoy</span>
+                <span role="columnheader" style="padding: 0 12px">Estado</span>
+                <span role="columnheader" aria-label="Acciones"></span>
+              </div>
+              <sc-for list="{{g.rows}}" as="e" hint-placeholder-count="3">
+                <div role="row" style="height: 60px; display: grid; grid-template-columns: minmax(240px, 1.4fr) 170px 150px minmax(190px, 1fr) 130px 52px; align-items: center; border-bottom: 1px solid #EAECF0; font-size: 14px">
+                  <span role="cell" style="display: flex; align-items: center; gap: 12px; padding: 0 16px; min-width: 0">
+                    <span style="position: relative; width: 36px; height: 36px; flex-shrink: 0; border-radius: 50%; background: {{e.avBg}}; color: {{e.avFg}}; font-size: 13px; font-weight: 800; display: flex; align-items: center; justify-content: center">{{e.ini}}
+                      <span style="position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid #FFFFFF; background: {{e.presence}}"></span></span>
+                    <span style="display: flex; flex-direction: column; min-width: 0; line-height: 1.3">
+                      <span style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{e.name}}</span>
+                      <span style="font-size: 12px; color: #667085; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{e.job}}</span>
+                    </span>
+                  </span>
+                  <span role="cell" style="padding: 0 12px">
+                    <span style="position: relative; display: inline-flex; align-items: center">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="{{e.lvFg}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="position: absolute; left: 8px; pointer-events: none"><path d="{{e.lvIcon}}"></path></svg>
+                      <select value="{{e.level}}" onChange="{{e.setLevel}}" aria-label="Nivel de {{e.name}}" style="appearance: none; -webkit-appearance: none; font: inherit; font-size: 13px; font-weight: 600; color: {{e.lvFg}}; height: 30px; border: 1px solid {{e.lvBorder}}; border-radius: 8px; background: {{e.lvBg}}; padding: 0 26px 0 29px; cursor: pointer">
+                        <sc-for list="{{levelOptions}}" as="o" hint-placeholder-count="5"><option value="{{o.v}}">{{o.v}}</option></sc-for>
+                      </select>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="{{e.lvFg}}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="position: absolute; right: 9px; pointer-events: none"><path d="m6 9 6 6 6-6"></path></svg>
+                    </span>
+                  </span>
+                  <span role="cell" style="padding: 0 12px">
+                    <span style="position: relative; display: inline-flex; align-items: center">
+                      <select value="{{e.team}}" onChange="{{e.setTeam}}" aria-label="Equipo de {{e.name}}" style="appearance: none; -webkit-appearance: none; font: inherit; font-size: 13px; font-weight: 700; color: {{e.teamFg}}; height: 28px; border: 0; border-radius: 6px; background: {{e.teamBg}}; padding: 0 26px 0 10px; cursor: pointer">
+                        <sc-for list="{{teamOptions}}" as="o" hint-placeholder-count="4"><option value="{{o.v}}">{{o.label}}</option></sc-for>
+                      </select>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="{{e.teamFg}}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="position: absolute; right: 8px; pointer-events: none"><path d="m6 9 6 6 6-6"></path></svg>
+                    </span>
+                  </span>
+                  <span role="cell" style="display: flex; flex-direction: column; padding: 0 12px; min-width: 0; line-height: 1.3">
+                    <span style="font-weight: 600; color: {{e.nowFg}}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{e.now}}</span>
+                    <span style="font-size: 12px; color: #667085; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{e.nowSub}}</span>
+                  </span>
+                  <span role="cell" style="padding: 0 12px">
+                    <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: {{e.stFg}}; background: {{e.stBg}}; border-radius: 6px; padding: 4px 8px; white-space: nowrap"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{e.stFg}}"></span>{{e.state}}</span>
+                  </span>
+                  <span role="cell" style="display: flex; justify-content: center">
+                    <button type="button" aria-label="Más opciones para {{e.name}}" style="width: 32px; height: 32px; border: 0; border-radius: 8px; background: transparent; color: #475467; cursor: pointer; display: flex; align-items: center; justify-content: center">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="12" cy="19" r="1.8"></circle></svg></button>
+                  </span>
+                </div>
+              </sc-for>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{isTeams}}" hint-placeholder-val="{{false}}">
+        <div style="overflow-x: auto; border-top: 1px solid #EAECF0">
+          <div role="table" aria-label="Equipos de obra" style="min-width: 1040px">
+            <div role="row" style="height: 40px; display: grid; grid-template-columns: 210px 210px minmax(240px, 1fr) 230px 190px 52px; align-items: center; background: #F9FAFB; border-bottom: 1px solid #EAECF0; font-size: 13px; font-weight: 600; color: #475467">
+              <span role="columnheader" style="padding: 0 16px">Equipo</span>
+              <span role="columnheader" style="padding: 0 12px">Encargado</span>
+              <span role="columnheader" style="padding: 0 12px">Integrantes</span>
+              <span role="columnheader" style="padding: 0 12px">Hoy</span>
+              <span role="columnheader" style="padding: 0 12px">Próximo</span>
+              <span role="columnheader" aria-label="Acciones"></span>
+            </div>
+            <sc-for list="{{teams}}" as="t" hint-placeholder-count="3">
+              <div role="row" style="height: 72px; display: grid; grid-template-columns: 210px 210px minmax(240px, 1fr) 230px 190px 52px; align-items: center; border-bottom: 1px solid #EAECF0; font-size: 14px">
+                <span role="cell" style="display: flex; align-items: center; gap: 12px; padding: 0 16px">
+                  <span style="width: 40px; height: 40px; flex-shrink: 0; border-radius: 10px; background: #1F2A3D; color: #FFFFFF; font-size: 15px; font-weight: 800; display: flex; align-items: center; justify-content: center">{{t.code}}</span>
+                  <span style="display: flex; flex-direction: column; line-height: 1.3">
+                    <span style="font-weight: 700">{{t.name}}</span>
+                    <span style="font-size: 12px; color: #667085">{{t.size}}</span>
+                  </span>
+                </span>
+                <span role="cell" style="display: flex; align-items: center; gap: 10px; padding: 0 12px; min-width: 0">
+                  <span style="width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; background: #EEF0FE; color: #3538CD; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center">{{t.leadIni}}</span>
+                  <span style="display: flex; flex-direction: column; min-width: 0; line-height: 1.3">
+                    <span style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{t.lead}}</span>
+                    <span style="font-size: 12px; color: #667085">Encargado</span>
+                  </span>
+                </span>
+                <span role="cell" style="display: flex; align-items: center; gap: 10px; padding: 0 12px; min-width: 0">
+                  <span style="display: flex; flex-shrink: 0">
+                    <sc-for list="{{t.members}}" as="m" hint-placeholder-count="2">
+                      <span title="{{m.name}}" style="width: 30px; height: 30px; margin-right: -8px; border-radius: 50%; border: 2px solid #FFFFFF; background: #F2F4F7; color: #344054; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center">{{m.ini}}</span>
+                    </sc-for>
+                  </span>
+                  <span style="margin-left: 8px; font-size: 13px; color: #475467; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{t.memberNames}}</span>
+                </span>
+                <span role="cell" style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 0 12px; min-width: 0">
+                  <span style="display: inline-flex; align-items: center; gap: 6px; max-width: 100%; font-size: 12px; font-weight: 700; color: {{t.nowFg}}; background: {{t.nowBg}}; border-radius: 6px; padding: 3px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis"><span style="width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; background: {{t.nowFg}}"></span>{{t.now}}</span>
+                  <span style="font-size: 12px; color: #667085">{{t.nowSub}}</span>
+                </span>
+                <span role="cell" style="display: flex; flex-direction: column; padding: 0 12px; min-width: 0; line-height: 1.3">
+                  <span style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{t.next}}</span>
+                  <span style="font-size: 12px; color: #3538CD; font-weight: 600">{{t.nextWhen}}</span>
+                </span>
+                <span role="cell" style="display: flex; justify-content: center">
+                  <button type="button" aria-label="Más opciones para {{t.name}}" style="width: 32px; height: 32px; border: 0; border-radius: 8px; background: transparent; color: #475467; cursor: pointer; display: flex; align-items: center; justify-content: center">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="12" cy="19" r="1.8"></circle></svg></button>
+                </span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="padding: 12px 16px; font-size: 13px; color: #475467; border-top: 1px solid #EAECF0">Los integrantes se asignan desde la pestaña Empleados. El supervisor ({{supervisor}}) ve todos los equipos.</div>
+      </sc-if>
+
+      <sc-if value="{{isCompanies}}" hint-placeholder-val="{{false}}">
+        <div style="overflow-x: auto; border-top: 1px solid #EAECF0">
+          <div role="table" aria-label="Empresas" style="min-width: 860px">
+            <div role="row" style="height: 40px; display: grid; grid-template-columns: minmax(240px, 1fr) 190px 130px 140px 110px 52px; align-items: center; background: #F9FAFB; border-bottom: 1px solid #EAECF0; font-size: 13px; font-weight: 600; color: #475467">
+              <span role="columnheader" style="padding: 0 16px">Empresa</span>
+              <span role="columnheader" style="padding: 0 12px">Color en el mural</span>
+              <span role="columnheader" style="padding: 0 12px; text-align: right">Activos</span>
+              <span role="columnheader" style="padding: 0 12px; text-align: right">Por programar</span>
+              <span role="columnheader" style="padding: 0 12px; text-align: right">Total</span>
+              <span role="columnheader" aria-label="Acciones"></span>
+            </div>
+            <sc-for list="{{companies}}" as="c" hint-placeholder-count="5">
+              <div role="row" style="height: 60px; display: grid; grid-template-columns: minmax(240px, 1fr) 190px 130px 140px 110px 52px; align-items: center; border-bottom: 1px solid #EAECF0; font-size: 14px">
+                <span role="cell" style="display: flex; align-items: center; gap: 12px; padding: 0 16px; min-width: 0">
+                  <span style="width: 36px; height: 36px; flex-shrink: 0; border-radius: 9px; background: {{c.mBg}}; color: {{c.mFg}}; font-size: 13px; font-weight: 800; display: flex; align-items: center; justify-content: center">{{c.mono}}</span>
+                  <span style="display: flex; flex-direction: column; min-width: 0; line-height: 1.3">
+                    <span style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{c.name}}</span>
+                    <span style="font-size: 12px; color: #667085">Sigla {{c.mono}}</span>
+                  </span>
+                </span>
+                <span role="cell" style="display: flex; align-items: center; gap: 10px; padding: 0 12px">
+                  <label style="position: relative; width: 28px; height: 28px; flex-shrink: 0; border-radius: 8px; background: {{c.color}}; box-shadow: inset 0 0 0 1px rgba(16,24,40,0.12); cursor: pointer">
+                    <input type="color" value="{{c.color}}" onInput="{{c.setColor}}" aria-label="Color de {{c.name}}" style="position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer">
+                  </label>
+                  <span style="font-size: 13px; font-weight: 600; color: #344054; font-variant-numeric: tabular-nums; text-transform: uppercase">{{c.color}}</span>
+                </span>
+                <span role="cell" style="padding: 0 12px; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums">{{c.active}}</span>
+                <span role="cell" style="padding: 0 12px; text-align: right; color: #475467; font-variant-numeric: tabular-nums">{{c.waiting}}</span>
+                <span role="cell" style="padding: 0 12px; text-align: right; color: #475467; font-variant-numeric: tabular-nums">{{c.total}}</span>
+                <span role="cell" style="display: flex; justify-content: center">
+                  <button type="button" aria-label="Más opciones para {{c.name}}" style="width: 32px; height: 32px; border: 0; border-radius: 8px; background: transparent; color: #475467; cursor: pointer; display: flex; align-items: center; justify-content: center">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="12" cy="19" r="1.8"></circle></svg></button>
+                </span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="padding: 12px 16px; font-size: 13px; color: #475467; border-top: 1px solid #EAECF0">El color y la sigla identifican a la empresa en la tabla de Proyectos y en el mural.</div>
+      </sc-if>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"tab":{"editor":"enum","options":["empleados","equipos","empresas"],"default":"empleados"},"$preview":{"width":1440,"height":1100}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const e = (id, name, job, level, team, state) => ({ id, name, job, level, team, state: state || 'Activo' });
+    this.state = {
+      tab: null,
+      levelFilter: 'Todos',
+      companyColors: {},
+      people: [
+        e(1, 'Miguel Fermín', 'Supervisor de obras', 'Supervisor', ''),
+        e(2, 'Ramón Tejada', 'Electricista', 'Encargado', 'E1'),
+        e(3, 'Juan Carlos Méndez', 'Electricista', 'Encargado', 'E2'),
+        e(4, 'Pedro Almonte', 'Electricista', 'Encargado', 'E3'),
+        e(5, 'Luis Peña', 'Instalador', 'Técnico', 'E1'),
+        e(6, 'Kelvin Rosario', 'Instalador', 'Técnico', 'E1', 'Vacaciones'),
+        e(7, 'Wander Ortiz', 'Instalador', 'Técnico', 'E2'),
+        e(8, 'Félix Santana', 'Electricista', 'Técnico', 'E2'),
+        e(9, 'Starlin Reyes', 'Instalador', 'Técnico', 'E3'),
+        e(10, 'Manuel Vargas', 'Ayudante de montaje', 'Ayudante', 'E3'),
+        e(11, 'Yokasta Rodríguez', 'Oficina administrativa', 'Oficina', ''),
+        e(12, 'Carlos Batista', 'Ingeniería', 'Oficina', ''),
+        e(13, 'Ana Guzmán', 'Compras', 'Oficina', '')
+      ]
+    };
+  }
+  update(id, patch) {
+    this.setState({ people: this.state.people.map((p) => (p.id === id ? { ...p, ...patch } : p)) });
+  }
+  renderVals() {
+    const st = this.state;
+    const tab = st.tab || this.props.tab || 'empleados';
+    const ini = (n) => n.replace(/^Sr\.\s*/, '').split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+
+    const LEVELS = {
+      'Supervisor': { group: 'Supervisión', icon: 'M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z', fg: '#1F2A3D', bg: '#E8ECF2', border: '#D5DBE5', avBg: '#1F2A3D', avFg: '#FFFFFF' },
+      'Encargado': { group: 'Encargados de equipo', icon: 'M5 21V4M5 4h11l-2 4 2 4H5', fg: '#3538CD', bg: '#EEF0FE', border: '#DCE0FC', avBg: '#EEF0FE', avFg: '#3538CD' },
+      'Técnico': { group: 'Técnicos', icon: 'M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z', fg: '#344054', bg: '#FFFFFF', border: '#EAECF0', avBg: '#F2F4F7', avFg: '#344054' },
+      'Ayudante': { group: 'Ayudantes', icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1', fg: '#344054', bg: '#FFFFFF', border: '#EAECF0', avBg: '#F2F4F7', avFg: '#344054' },
+      'Oficina': { group: 'Oficina', icon: 'M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16M16 9h2a2 2 0 0 1 2 2v10M2 21h20M8 7h4M8 11h4M8 15h4', fg: '#344054', bg: '#FFFFFF', border: '#EAECF0', avBg: '#FFF1E7', avFg: '#9A3412' }
+    };
+    const levelOrder = Object.keys(LEVELS);
+    const TEAM_NOW = {
+      E1: { now: 'Colegio Arcoíris', sub: 'La Romana · hasta vie 30' },
+      E2: { now: 'Taller Motormax', sub: 'Punta Cana · hasta vie 6 nov' },
+      E3: { now: 'Granja Los Pinos', sub: 'Monte Cristi · termina mañana' }
+    };
+    const STATE = {
+      'Activo': { fg: '#095C4F', bg: '#E0F4EF', presence: '#12B76A' },
+      'Vacaciones': { fg: '#B54708', bg: '#FFFAEB', presence: '#F79009' },
+      'De baja': { fg: '#475467', bg: '#F2F4F7', presence: '#98A2B3' }
+    };
+
+    const tabs = [
+      { key: 'empleados', label: 'Empleados', count: st.people.length, icon: 'M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 10a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M21 19v-1a4 4 0 0 0-3-3.9M16 3.1a3.5 3.5 0 0 1 0 6.8' },
+      { key: 'equipos', label: 'Equipos de obra', count: 3, icon: 'M3 21h18M5 21V10l7-5 7 5v11M9 21v-6h6v6' },
+      { key: 'empresas', label: 'Empresas', count: 5, icon: 'M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16M16 9h2a2 2 0 0 1 2 2v10M2 21h20M8 7h4M8 11h4M8 15h4' }
+    ].map((t) => {
+      const on = t.key === tab;
+      return { ...t, selected: on ? 'true' : 'false', fg: on ? '#1B1F27' : '#667085', weight: on ? 700 : 600, line: on ? '#EA6A1F' : 'transparent', countFg: on ? '#9A3412' : '#475467', countBg: on ? '#FFF1E7' : '#F2F4F7', pick: () => this.setState({ tab: t.key }) };
+    });
+
+    const levelFilters = ['Todos'].concat(levelOrder).map((k) => {
+      const on = st.levelFilter === k;
+      return { label: k, pressed: on ? 'true' : 'false', fg: on ? '#FFFFFF' : '#344054', bg: on ? '#1B1F27' : '#FFFFFF', border: on ? '#1B1F27' : '#EAECF0', pick: () => this.setState({ levelFilter: k }) };
+    });
+
+    const toRow = (p) => {
+      const L = LEVELS[p.level];
+      const S = STATE[p.state];
+      let now = 'Oficina', nowSub = 'Santo Domingo', nowFg = '#344054';
+      if (p.state === 'Vacaciones') { now = 'De vacaciones'; nowSub = 'No cuenta para su equipo'; nowFg = '#B54708'; }
+      else if (p.level === 'Supervisor') { now = 'Recorre las 3 obras'; nowSub = 'E1 · E2 · E3'; }
+      else if (p.team && TEAM_NOW[p.team]) { now = TEAM_NOW[p.team].now; nowSub = TEAM_NOW[p.team].sub; nowFg = '#095C4F'; }
+      else if (p.level !== 'Oficina') { now = 'Sin equipo'; nowSub = 'Asígnalo a un equipo'; nowFg = '#667085'; }
+      return {
+        ...p, ini: ini(p.name),
+        avBg: L.avBg, avFg: L.avFg, presence: S.presence,
+        lvIcon: L.icon, lvFg: L.fg, lvBg: L.bg, lvBorder: L.border,
+        teamFg: p.team ? '#1F2A3D' : '#667085', teamBg: p.team ? '#E8ECF2' : '#F2F4F7',
+        now, nowSub, nowFg,
+        stFg: S.fg, stBg: S.bg,
+        setLevel: (ev) => this.update(p.id, { level: ev.target.value }),
+        setTeam: (ev) => this.update(p.id, { team: ev.target.value })
+      };
+    };
+    const groups = levelOrder
+      .filter((k) => st.levelFilter === 'Todos' || st.levelFilter === k)
+      .map((k) => {
+        const rows = st.people.filter((p) => p.level === k).map(toRow);
+        return { label: LEVELS[k].group, icon: LEVELS[k].icon, count: rows.length, rows };
+      })
+      .filter((g) => g.rows.length);
+
+    const teams = ['E1', 'E2', 'E3'].map((code, i) => {
+      const crew = st.people.filter((p) => p.team === code);
+      const lead = crew.find((p) => p.level === 'Encargado');
+      const others = crew.filter((p) => p !== lead);
+      const NEXT = { E1: ['Lucía E. Gómez Paredes', 'Lun 2 nov · 1 día'], E2: ['Sin programar', 'Libre desde el sáb 7'], E3: ['Carla Méndez', 'Jue 29 oct · parte 1'] }[code];
+      const away = crew.filter((p) => p.state !== 'Activo').length;
+      return {
+        code, name: 'Equipo ' + (i + 1),
+        size: crew.length + (crew.length === 1 ? ' persona' : ' personas') + (away ? ' · ' + away + ' ausente' : ''),
+        lead: lead ? lead.name : 'Sin encargado', leadIni: lead ? ini(lead.name) : '—',
+        members: others.map((p) => ({ name: p.name, ini: ini(p.name) })),
+        memberNames: others.map((p) => p.name.split(' ')[0] + (p.state !== 'Activo' ? ' (vac.)' : '')).join(', ') || 'Sin integrantes',
+        now: 'En obra · ' + TEAM_NOW[code].now, nowSub: TEAM_NOW[code].sub, nowFg: '#095C4F', nowBg: '#E0F4EF',
+        next: NEXT[0], nextWhen: NEXT[1]
+      };
+    });
+    const supervisor = (st.people.find((p) => p.level === 'Supervisor') || { name: 'sin asignar' }).name;
+
+    const COMP = [
+      ['Electsun', 'EL', '#0EA5E9', '#E0F2FE', '#0369A1', 2, 1, 3],
+      ['Compusol', 'CO', '#EA580C', '#FFEDD5', '#9A3412', 3, 0, 5],
+      ['EcoSur', 'EC', '#CA8A04', '#FEF3C7', '#854D0E', 1, 0, 2],
+      ['Enerval', 'EN', '#7C3AED', '#EDE9FE', '#6D28D9', 2, 0, 2],
+      ['Evolta', 'EV', '#16A34A', '#DCFCE7', '#15803D', 1, 5, 6]
+    ];
+    const companies = COMP.map(([name, mono, color, mBg, mFg, active, waiting, total]) => ({
+      name, mono, mBg, mFg, active, waiting, total,
+      color: st.companyColors[name] || color,
+      setColor: (ev) => this.setState({ companyColors: { ...this.state.companyColors, [name]: ev.target.value } })
+    }));
+
+    const teamOptions = [['', 'Sin equipo'], ['E1', 'E1 · Equipo 1'], ['E2', 'E2 · Equipo 2'], ['E3', 'E3 · Equipo 3']].map(([v, label]) => ({ v, label }));
+    const levelOptions = levelOrder.map((v) => ({ v }));
+
+    return {
+      tabs, levelFilters, groups, teams, companies, teamOptions, levelOptions, supervisor,
+      isEmp: tab === 'empleados', isTeams: tab === 'equipos', isCompanies: tab === 'empresas',
+      searchHint: { empleados: 'Buscar persona…', equipos: 'Buscar equipo…', empresas: 'Buscar empresa…' }[tab],
+      addLabel: { empleados: 'Agregar empleado', equipos: 'Nuevo equipo', empresas: 'Agregar empresa' }[tab]
+    };
+  }
+}
+</script>
+</body>
+</html>

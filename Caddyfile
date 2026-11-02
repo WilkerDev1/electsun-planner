@@ -1,0 +1,15 @@
+{
+	admin off
+	auto_https off
+}
+:80 {
+	encode zstd gzip
+	request_body {
+		max_size 6MB
+	}
+	reverse_proxy planner-api:8080 {
+		# SSE del mural y del móvil: sin búfer.
+		flush_interval -1
+		header_up X-Forwarded-For {http.request.header.Cf-Connecting-Ip}
+	}
+}

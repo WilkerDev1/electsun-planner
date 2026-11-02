@@ -1,0 +1,336 @@
+// Reglas compartidas por servidor, administración, mural y móvil (REQUISITOS §5 CAL y §4.3 VAL).
+// Sin dependencias: fechas como texto ISO "aaaa-mm-dd" y aritmética en UTC para evitar saltos de horario.
+
+export type ISODate = string;
+
+export const TZ = "America/Santo_Domingo";
+
+export const STATUS_KINDS = [
+  "por_programar",
+  "programado",
+  "en_obra",
+  "en_pausa",
+  "terminado",
+  "post_obra",
+] as const;
+export type StatusKind = (typeof STATUS_KINDS)[number];
+
+/** Tipos que cuentan como obra activa y ocupan al equipo (EST-02). */
+export const BUSY_KINDS: readonly StatusKind[] = ["programado", "en_obra"];
+
+export const LEVELS = [
+  "Supervisor",
+  "Encargado",
+  "Técnico",
+  "Ayudante",
+  "Oficina",
+] as const;
+export type Level = (typeof LEVELS)[number];
+
+export const EMPLOYEE_STATES = ["Activo", "Vacaciones", "De baja"] as const;
+export type EmployeeState = (typeof EMPLOYEE_STATES)[number];
+
+export const SYSTEM_TYPES = ["neta", "hibrido"] as const;
+export type SystemType = (typeof SYSTEM_TYPES)[number];
+
+export const BRAND = "#EA6A1F";
+export const TODAY_LINE = "#C2410C";
+
+const DAY = 86_400_000;
+const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+const WEEKDAYS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+const WEEKDAYS_LONG = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+const MONTHS_LONG = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
+
+// ---------- Fechas ----------
+
+export const isISODate = (v: unknown): v is ISODate =>
+  typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && fromDays(toDays(v)) === v;
+
+export function toDays(iso: ISODate): number {
+  const [y, m, d] = iso.split("-").map(Number);
+  return Date.UTC(y, m - 1, d) / DAY;
+}
+
+export const fromDays = (n: number): ISODate => new Date(n * DAY).toISOString().slice(0, 10);
+
+export const addDays = (iso: ISODate, n: number): ISODate => fromDays(toDays(iso) + n);
+
+export const diffDays = (a: ISODate, b: ISODate): number => toDays(b) - toDays(a);
+
+/** 0 = domingo … 6 = sábado. */
+export const weekday = (iso: ISODate): number => new Date(toDays(iso) * DAY).getUTCDay();
+
+/** Lunes a sábado (CAL-01). */
+export const isWorkday = (iso: ISODate): boolean => weekday(iso) !== 0;
+
+export function mondayOf(iso: ISODate): ISODate {
+  const w = weekday(iso);
+  return addDays(iso, w === 0 ? -6 : 1 - w);
+}
+
+/** Fecha de hoy en la zona de la empresa. `override` permite fijar el día en demos y pruebas. */
+export function todayIn(tz = TZ, now = new Date(), override?: string | null): ISODate {
+  if (override && isISODate(override)) return override;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+}
+
+/** Índice de día laborable respecto de un lunes `base`. El domingo comparte índice con el sábado (CAL-01). */
+export function workdayIndex(d: ISODate, base: ISODate): number {
+  const days = diffDays(base, d);
+  const w = Math.floor(days / 7);
+  return w * 6 + Math.min(days - w * 7, 5);
+}
+
+/** Días laborables en el intervalo cerrado [a, b] (CAL-02). */
+export function countWorkdays(a: ISODate, b: ISODate): number {
+  if (b < a) return 0;
+  const base = mondayOf(a);
+  return workdayIndex(b, base) - workdayIndex(a, base) + (isWorkday(a) ? 1 : 0);
+}
+
+/** El día laborable número `n`, contando `start` como el día 1 (CAL-05). */
+export function addWorkdays(start: ISODate, n: number): ISODate {
+  let d = isWorkday(start) ? start : addDays(start, 1);
+  let left = Math.max(1, Math.floor(n)) - 1;
+  while (left > 0) {
+    d = addDays(d, 1);
+    if (isWorkday(d)) left--;
+  }
+  return d;
+}
+
+export const estimatedEnd = (start: ISODate, days: number): ISODate => addWorkdays(start, days);
+
+// ---------- Textos ----------
+
+export const shortDate = (iso: ISODate): string =>
+  `${Number(iso.slice(8, 10))} ${MONTHS[Number(iso.slice(5, 7)) - 1]}`;
+
+/** "vie 30 oct" */
+export const dayLabel = (iso: ISODate): string => `${WEEKDAYS[weekday(iso)]} ${shortDate(iso)}`;
+
+export const weekdayShort = (iso: ISODate): string => WEEKDAYS[weekday(iso)];
+
+/** "Martes 27 de octubre" */
+export function longDate(iso: ISODate): string {
+  const s = `${WEEKDAYS_LONG[weekday(iso)]} ${Number(iso.slice(8, 10))} de ${MONTHS_LONG[Number(iso.slice(5, 7)) - 1]}`;
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+export function rangeLabel(start: ISODate | null, end: ISODate | null): string {
+  if (!start) return "";
+  if (!end || end === start) return shortDate(start);
+  return `${shortDate(start)} – ${shortDate(end)}`;
+}
+
+/** "planos, material y EDE" */
+export function joinEs(items: string[]): string {
+  if (items.length <= 1) return items.join("");
+  return `${items.slice(0, -1).join(", ")} y ${items[items.length - 1]}`;
+}
+
+export const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+// ---------- Progreso y atraso ----------
+
+/** "Día X de N" para una obra en curso (CAL-02). */
+export function dayOf(start: ISODate, end: ISODate | null, today: ISODate) {
+  const total = countWorkdays(start, end ?? start);
+  const day = Math.min(countWorkdays(start, today), Math.max(total, 1));
+  return { day, total, text: `Día ${day} de ${total}`, ratio: total ? Math.min(1, day / total) : 0 };
+}
+
+/** Días naturales hasta el inicio, como en el mural: "Inicia hoy", "Inicia mañana", "Inicia en N días". */
+export function startsIn(start: ISODate, today: ISODate) {
+  const days = diffDays(today, start);
+  const text =
+    days <= 0 ? "Inicia hoy" : days === 1 ? "Inicia mañana" : `Inicia en ${days} días`;
+  return { days, text };
+}
+
+/** Días laborables de atraso: obra "en_obra" cuyo fin previsto ya pasó (CAL-06). */
+export function lateDays(kind: StatusKind, end: ISODate | null, today: ISODate): number {
+  if (kind !== "en_obra" || !end || end >= today) return 0;
+  return countWorkdays(end, today) - 1;
+}
+
+export const lateText = (n: number) => `Atrasada · +${plural(n, "día", "días")}`;
+
+// ---------- Preparación (CAL-07, VAL-09) ----------
+
+export type Prep = {
+  system_type: SystemType;
+  prep_plans: boolean;
+  prep_materials: boolean;
+  prep_ede: boolean;
+};
+
+export function missingPrep(p: Prep): string[] {
+  const out: string[] = [];
+  if (!p.prep_plans) out.push("planos");
+  if (!p.prep_materials) out.push("material");
+  if (p.system_type === "neta" && !p.prep_ede) out.push("EDE");
+  return out;
+}
+
+export function waitReason(p: Prep): string {
+  const m = missingPrep(p);
+  return m.length ? `Espera ${joinEs(m)}` : "Lista para programar";
+}
+
+// ---------- Calendario (CAL-03) ----------
+
+export type BarPlacement = {
+  visible: boolean;
+  col: number;
+  span: number;
+  clipStart: boolean;
+  clipEnd: boolean;
+  labelInside: boolean;
+};
+
+/**
+ * Coloca una barra [start, end] en una cuadrícula de `weeks` semanas (6 columnas por semana) que empieza el lunes `from`.
+ * La barra que viene de antes del rango lleva la esquina izquierda recta (`clipStart`).
+ */
+export function placeBar(start: ISODate, end: ISODate | null, from: ISODate, weeks: number): BarPlacement {
+  const cols = weeks * 6;
+  let s = workdayIndex(start, from);
+  if (!isWorkday(start)) s += 1;
+  const e = workdayIndex(end ?? start, from);
+  if (e < 0 || s > cols - 1 || e < s)
+    return { visible: false, col: 0, span: 0, clipStart: false, clipEnd: false, labelInside: false };
+  const col = Math.max(0, s);
+  const last = Math.min(cols - 1, e);
+  const span = last - col + 1;
+  return { visible: true, col, span, clipStart: s < 0, clipEnd: e > cols - 1, labelInside: span >= 5 };
+}
+
+/** Tramo de atraso entre el día siguiente al fin previsto y hoy, para dibujarlo discontinuo. */
+export function overrunBar(end: ISODate, today: ISODate, from: ISODate, weeks: number): BarPlacement | null {
+  if (end >= today) return null;
+  const bar = placeBar(addDays(end, 1), today, from, weeks);
+  return bar.visible ? bar : null;
+}
+
+/** Las columnas (días laborables) de una cuadrícula de `weeks` semanas desde el lunes `from`. */
+export function gridDays(from: ISODate, weeks: number): ISODate[] {
+  const out: ISODate[] = [];
+  for (let w = 0; w < weeks; w++) for (let d = 0; d < 6; d++) out.push(addDays(from, w * 7 + d));
+  return out;
+}
+
+// ---------- Choques y validación (VAL) ----------
+
+export type Schedulable = {
+  id: string;
+  name: string;
+  team_id: string | null;
+  start_date: ISODate | null;
+  end_date: ISODate | null;
+  archived?: boolean;
+  kind: StatusKind;
+};
+
+/** Otro proyecto activo del mismo equipo cuyas fechas se solapan (VAL-06, CAL-04). */
+export function teamClash<T extends Schedulable>(p: Schedulable, others: T[]): T | null {
+  if (!p.team_id || !p.start_date || !BUSY_KINDS.includes(p.kind)) return null;
+  const a1 = p.start_date;
+  const a2 = p.end_date ?? p.start_date;
+  return (
+    others.find(
+      (o) =>
+        o.id !== p.id &&
+        !o.archived &&
+        o.team_id === p.team_id &&
+        o.start_date &&
+        BUSY_KINDS.includes(o.kind) &&
+        o.start_date <= a2 &&
+        (o.end_date ?? o.start_date) >= a1,
+    ) ?? null
+  );
+}
+
+const EMPTY_DATE = /^(n\/?a|-+|—|sin fecha|pendiente)?$/i;
+
+/** Normaliza una fecha de Excel o de un formulario (VAL-05, XLS-04). Devuelve `undefined` si no se entiende. */
+export function normalizeDate(v: unknown): ISODate | null | undefined {
+  if (v === null || v === undefined) return null;
+  if (v instanceof Date) return Number.isNaN(v.getTime()) ? undefined : v.toISOString().slice(0, 10);
+  if (typeof v === "number") {
+    if (!Number.isFinite(v) || v < 20000 || v > 80000) return undefined;
+    return fromDays(Math.floor(v) - 25569); // serie de Excel (1900)
+  }
+  if (typeof v !== "string") return undefined;
+  const s = v.trim();
+  if (EMPTY_DATE.test(s)) return null;
+  if (isISODate(s)) return s;
+  const m = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2}|\d{4})$/.exec(s);
+  if (!m) return undefined;
+  const year = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+  const iso = `${year}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  return isISODate(iso) ? iso : undefined;
+}
+
+export type StatusRules = { kind: StatusKind; name: string; requires_schedule: boolean; requires_reason: boolean };
+
+export type ValidatableProject = Prep & {
+  id: string;
+  name: string;
+  sale_date: ISODate | null;
+  start_date: ISODate | null;
+  end_date: ISODate | null;
+  team_id: string | null;
+  pause_reason: string;
+  archived?: boolean;
+};
+
+export type Validation = { errors: string[]; warnings: string[] };
+
+/** Errores bloquean el guardado; avisos no (VAL-10). */
+export function validateProject(
+  p: ValidatableProject,
+  status: StatusRules,
+  others: Schedulable[],
+  today: ISODate,
+  teamCode?: (id: string) => string,
+): Validation {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  if (status.requires_schedule && (!p.start_date || !p.team_id))
+    errors.push(`Para estar ${status.name} necesita fecha de inicio y equipo.`);
+  if (status.requires_reason && !p.pause_reason.trim()) errors.push("Falta el motivo de la pausa.");
+  if (p.start_date && p.end_date && p.end_date < p.start_date)
+    errors.push("La fecha de fin es anterior al inicio.");
+  if (p.start_date && p.sale_date && p.start_date < p.sale_date)
+    warnings.push("El inicio es anterior a la fecha de venta. Revisa las fechas.");
+  const clash = teamClash({ ...p, kind: status.kind }, others);
+  if (clash)
+    warnings.push(`${teamCode?.(p.team_id!) ?? "El equipo"} ya está en ${clash.name} esos días.`);
+  const miss = missingPrep(p);
+  if (BUSY_KINDS.includes(status.kind) && miss.length)
+    warnings.push(`${status.name} con preparación pendiente: falta ${joinEs(miss)}.`);
+  const late = lateDays(status.kind, p.end_date, today);
+  if (late) warnings.push(`${lateText(late)}: debía terminar el ${dayLabel(p.end_date!)}.`);
+  return { errors, warnings };
+}
+
+/** Texto plano sin tildes y en minúsculas, para buscar y comparar cabeceras de Excel. */
+export const fold = (s: string) =>
+  s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
+
+/** Distancia RGB simple entre dos colores #rrggbb (EQP-05). */
+export function colorDistance(a: string, b: string): number {
+  const rgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const [x, y] = [rgb(a), rgb(b)];
+  return Math.sqrt(x.reduce((s, v, i) => s + (v - y[i]) ** 2, 0));
+}

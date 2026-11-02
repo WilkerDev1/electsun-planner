@@ -1,0 +1,18 @@
+node_modules/
+dist/
+dist-server/
+coverage/
+playwright-report/
+test-results/
+.env
+.env.*
+!.env.example
+*.log
+
+# Datos reales: nunca al repo público
+privado/
+*.xlsx
+*.xls
+*.csv
+uploads/
+backups/

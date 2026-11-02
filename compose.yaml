@@ -1,0 +1,74 @@
+name: electsun-planner
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+    environment:
+      POSTGRES_USER: planner
+      POSTGRES_DB: planner
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?ejecuta ops/local.sh o configura .env}
+    volumes: [database:/var/lib/postgresql/data]
+    networks:
+      database:
+        aliases: [planner-db]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U planner -d planner]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    security_opt: [no-new-privileges:true]
+  planner-api:
+    build: .
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+    depends_on:
+      db: {condition: service_healthy}
+    environment:
+      DATABASE_URL: postgres://planner:${POSTGRES_PASSWORD}@planner-db:5432/planner
+      TRUST_PROXY: "true"
+      PORT: 8080
+      APP_ORIGIN: ${APP_ORIGIN:-http://localhost:8091}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      BOOTSTRAP_EMAIL: ${BOOTSTRAP_EMAIL:?define BOOTSTRAP_EMAIL}
+      BOOTSTRAP_NAME: ${BOOTSTRAP_NAME:-Administrador}
+      BOOTSTRAP_PASSWORD: ${BOOTSTRAP_PASSWORD:?define BOOTSTRAP_PASSWORD}
+      SEED_DEMO: ${SEED_DEMO:-false}
+      SEED_OFFICE_EMAIL: ${SEED_OFFICE_EMAIL:-}
+      SEED_OFFICE_PASSWORD: ${SEED_OFFICE_PASSWORD:-}
+      PLANNER_TODAY: ${PLANNER_TODAY:-}
+    networks: [front, database]
+    read_only: true
+    tmpfs: [/tmp:size=128m]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8080/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+    depends_on:
+      planner-api: {condition: service_healthy}
+    ports: ["127.0.0.1:${HTTP_PORT:-8091}:80"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [front]
+    security_opt: [no-new-privileges:true]
+networks:
+  front: {}
+  database: {internal: true}
+volumes:
+  database: {}
+  caddy_data: {}
+  caddy_config: {}

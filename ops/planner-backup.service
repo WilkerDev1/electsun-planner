@@ -1,0 +1,6 @@
+[Unit]
+Description=Backup de Electsun Planner
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/electsun-planner
+ExecStart=/opt/electsun-planner/ops/backup.sh

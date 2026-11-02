@@ -1,0 +1,79 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { api, ApiError } from "./api";
+
+type LiveState<T> = { data: T | null; error: ApiError | null; fetchedAt: Date | null; offline: boolean; revoked: boolean };
+
+/**
+ * Datos de una vista en vivo (mural TV y móvil, MUR-10/11, MOV-07/09):
+ * pide `path`, se suscribe a /api/events (con `eventsQuery`), consulta cada 60 s como respaldo
+ * y guarda la última respuesta en localStorage para mostrarla sin conexión.
+ */
+export function useLive<T>(path: string, cacheKey: string, eventsQuery = "") {
+  const [state, setState] = useState<LiveState<T>>(() => {
+    try {
+      const raw = localStorage.getItem(cacheKey);
+      if (raw) {
+        const { data, at } = JSON.parse(raw);
+        return { data, error: null, fetchedAt: new Date(at), offline: true, revoked: false };
+      }
+    } catch {
+      /* sin almacenamiento */
+    }
+    return { data: null, error: null, fetchedAt: null, offline: false, revoked: false };
+  });
+  const inflight = useRef(false);
+
+  const load = useCallback(async () => {
+    if (inflight.current) return;
+    inflight.current = true;
+    try {
+      const data = await api<T>(path);
+      const at = new Date();
+      setState({ data, error: null, fetchedAt: at, offline: false, revoked: false });
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify({ data, at: at.toISOString() }));
+      } catch {
+        /* sin almacenamiento */
+      }
+    } catch (e) {
+      const err = e instanceof ApiError ? e : new ApiError(0, "Sin conexión");
+      setState((s) => ({ ...s, error: err, offline: err.status === 0, revoked: err.status === 401 || err.status === 403 }));
+    } finally {
+      inflight.current = false;
+    }
+  }, [path, cacheKey]);
+
+  useEffect(() => {
+    void load();
+    const poll = setInterval(load, 60000);
+    let source: EventSource | null = null;
+    let retry = 1000;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    const connect = () => {
+      source = new EventSource("/api/events" + eventsQuery);
+      source.addEventListener("ready", () => {
+        retry = 1000;
+      });
+      source.addEventListener("change", () => void load());
+      source.addEventListener("revoked", () => void load());
+      source.onerror = () => {
+        source?.close();
+        retryTimer = setTimeout(connect, retry);
+        retry = Math.min(retry * 2, 30000);
+      };
+    };
+    connect();
+    const onVisible = () => document.visibilityState === "visible" && void load();
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("online", load);
+    return () => {
+      clearInterval(poll);
+      clearTimeout(retryTimer);
+      source?.close();
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", load);
+    };
+  }, [load, eventsQuery]);
+
+  return { ...state, reload: load };
+}
