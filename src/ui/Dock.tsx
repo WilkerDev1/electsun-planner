@@ -88,7 +88,7 @@ export function Dock() {
           type="button"
           aria-haspopup="menu"
           aria-expanded={menu}
-          aria-label={`Cuenta de ${user?.name ?? ""}`}
+          aria-label={`${initials(user?.name ?? "?")} · Cuenta de ${user?.name ?? ""}`}
           onClick={() => setMenu((m) => !m)}
           className="flex size-11 items-center justify-center rounded-full bg-fill text-[13px] font-extrabold text-ink-2"
         >

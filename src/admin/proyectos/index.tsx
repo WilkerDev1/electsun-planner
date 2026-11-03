@@ -147,11 +147,12 @@ export default function Proyectos() {
           {list.map((p, i) => (
             <Row key={p.id} p={p} index={i} selected={false} warn={warnOf(p)} today={today} isAdmin={isAdmin} statuses={catalogs.statuses} teams={activeTeams} lk={lk} onPatch={patch} onOpen={open} onPickStatus={pickStatus} />
           ))}
-          <button type="button" onClick={() => void addProject()} className="flex h-11 w-full cursor-pointer items-center gap-2 border-0 bg-white px-4 text-left text-sm font-semibold text-muted hover:bg-fill-2">
+        </div>
+        {/* Fuera del role="table": una tabla solo puede contener filas (axe aria-required-children). */}
+        <button type="button" onClick={() => void addProject()} className="flex h-11 w-full cursor-pointer items-center gap-2 border-0 bg-white px-4 text-left text-sm font-semibold text-muted hover:bg-fill-2">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden><path d="M12 5v14M5 12h14" /></svg>
             Agregar proyecto
           </button>
-        </div>
       </div>
     );
   }

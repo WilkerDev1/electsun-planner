@@ -144,7 +144,7 @@ export const Row = memo(function Row({ p, index, selected, warn, today, isAdmin,
                 type="button"
                 disabled={na}
                 aria-pressed={ok}
-                aria-label={`${title} · ${p.name}`}
+                aria-label={`${c.short} · ${title} · ${p.name}`}
                 title={title}
                 onClick={() => onPatch(p.id, { [c.key]: !p[c.key] })}
                 className="flex h-[26px] min-w-[34px] items-center justify-center gap-0.5 rounded-md px-1.5 text-[11px] font-extrabold"

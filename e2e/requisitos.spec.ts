@@ -11,15 +11,7 @@ import { adminApi, createLink, login, mobileLinkPath, openPhone } from "./helper
  * Reglas de axe desactivadas por ruta porque la causa está en archivos de otro encargo (src/**),
  * que este encargo no puede tocar. Cada una queda anotada para arreglarla en su archivo.
  */
-const KNOWN: Record<string, string[]> = {
-  // src/admin/proyectos/Table.tsx: el contenedor role="table" tiene hijos que no son filas/encabezados directos.
-  // Las celdas de preparación (Planos y BOM, Materiales) tienen title/aria-label que no contiene el texto visible.
-  "/proyectos": ["aria-required-children", "label-content-name-mismatch"],
-  // Avatar de 44 px del menú inferior (src/ui/Dock.tsx): etiqueta accesible distinta del texto visible (las iniciales).
-  "/equipo": ["label-content-name-mismatch"],
-  // Vista previa del mural (src/mural/Principal.tsx, footer y calendario): texto gris claro bajo 4,5:1.
-  "/mural": ["color-contrast", "label-content-name-mismatch"],
-};
+const KNOWN: Record<string, string[]> = {};
 
 async function serious(page: Page, disabled: string[] = []) {
   const results = await new AxeBuilder({ page })

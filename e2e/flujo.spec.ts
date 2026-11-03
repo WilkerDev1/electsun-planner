@@ -16,23 +16,23 @@ test("la oficina renombra un proyecto y la TV y el móvil lo muestran sin recarg
   const tvPage = await (await browser.newContext({ viewport: { width: 1920, height: 1080 } })).newPage();
   await tvPage.goto(tv.path);
   await expect(tvPage).toHaveURL(new RegExp(`/tv/${tv.link.id}(#.*)?$`));
-  await expect(tvPage.getByText("Sr. Herrera").first()).toBeVisible();
+  await expect(tvPage.getByText("Carla Méndez").first()).toBeVisible();
 
   const phone = await (await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })).newPage();
   await phone.goto(mobile.path);
   await expect(phone).toHaveURL(/\/m$/);
   await phone.goto("/m/obras");
-  await expect(phone.getByText("Sr. Herrera").first()).toBeVisible();
+  await expect(phone.getByText("Carla Méndez").first()).toBeVisible();
 
   await login(page, OFFICE);
   // La celda del nombre se localiza por su valor y se conserva el elemento: su etiqueta accesible
   // ("Proyecto N" o con el nombre real) y su valor cambian al escribir.
-  const cell = (await page.locator('input[value="Sr. Herrera"]').first().elementHandle())!;
-  await cell.fill("Sr. Herrera (techo norte)");
+  const cell = (await page.locator('input[value="Carla Méndez"]').first().elementHandle())!;
+  await cell.fill("Carla Méndez (techo norte)");
   await cell.press("Enter");
 
-  await expect(tvPage.getByText("Sr. Herrera (techo norte)").first()).toBeVisible({ timeout: 15000 });
-  await expect(phone.getByText("Sr. Herrera (techo norte)").first()).toBeVisible({ timeout: 15000 });
+  await expect(tvPage.getByText("Carla Méndez (techo norte)").first()).toBeVisible({ timeout: 15000 });
+  await expect(phone.getByText("Carla Méndez (techo norte)").first()).toBeVisible({ timeout: 15000 });
 
   // Revocar el enlace de la TV: la pantalla lo explica en su siguiente lectura (ACC-03).
   const revoke = await request.post(`/api/access-links/${tv.link.id}/revoke`, { headers: { Origin: BASE } });
