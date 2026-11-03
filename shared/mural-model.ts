@@ -198,6 +198,11 @@ export function datesLabel(start: ISODate | null, end: ISODate | null): string {
   return `${shortDate(start)} – ${shortDate(end)}`;
 }
 
+/** "vie 30", o "vie 6 nov" si cae en otro mes que hoy. */
+function endDay(end: ISODate, today: ISODate): string {
+  return end.slice(0, 7) === today.slice(0, 7) ? dayLabel(end).split(" ").slice(0, 2).join(" ") : dayLabel(end);
+}
+
 /** Suma de kWp en décimas, sin errores de coma flotante. */
 function sumKwp(list: Project[]): string {
   const cents = list.reduce((s, p) => s + (p.kwp ? Math.round(Number(p.kwp) * 100) : 0), 0);
@@ -285,7 +290,7 @@ export function muralModel(input: MuralInput, settings: MuralSettings, today: IS
     if (isObra && p.start_date) {
       const d = dayOf(p.start_date, p.end_date, today);
       const endIn = p.end_date ? diffDays(today, p.end_date) : null;
-      const endLabel = p.end_date ? dayLabel(p.end_date).split(" ").slice(0, 2).join(" ") : "";
+      const endLabel = p.end_date ? endDay(p.end_date, today) : "";
       progress = {
         text: late ? lateText(late) : d.text,
         endText: late
@@ -437,8 +442,7 @@ export function muralModel(input: MuralInput, settings: MuralSettings, today: IS
     const over = isObra && p.end_date ? overrunBar(p.end_date, today, from, weeks) : null;
     const t = p.team_id ? team.get(p.team_id) : undefined;
     const late = lateDays(p.status_kind, p.end_date, today);
-    const monthOfToday = today.slice(5, 7);
-    const endText = p.end_date ? (p.end_date.slice(5, 7) === monthOfToday ? dayLabel(p.end_date).split(" ").slice(0, 2).join(" ") : dayLabel(p.end_date)) : "";
+    const endText = p.end_date ? endDay(p.end_date, today) : "";
     const parts = [
       p.place,
       settings.show_notes && p.part.trim() ? p.part.trim().toLowerCase() : "",
