@@ -933,6 +933,18 @@ test("catálogo de preparación: un nombre no puede coincidir con el código de 
   }
 });
 
+test("catálogo de preparación: nombres sin letras ni números latinos no chocan entre sí (clave vacía)", async () => {
+  const body = { pending_label: "espera", applies_to: "todos", default_on: false };
+  try {
+    const a = await ctx.request<PrepItem>("/prep-items", "POST", { ...body, code: "XQ", name: "日本" }, ctx.admin);
+    assert.equal(a.status, 201);
+    const b = await ctx.request<PrepItem>("/prep-items", "POST", { ...body, code: "XR", name: "漢字" }, ctx.admin);
+    assert.equal(b.status, 201);
+  } finally {
+    await pool.query("DELETE FROM prep_items WHERE code IN ($1,$2)", ["XQ", "XR"]);
+  }
+});
+
 test("catálogo de preparación: nombres y códigos que chocan con columnas del Excel se rechazan (XLS-07, M2)", async () => {
   const body = { code: "ZZ", name: "Prueba", pending_label: "espera", applies_to: "todos", default_on: false };
   for (const name of ["Parte", "estado", "Observación", "Fin real", "Planos"]) {

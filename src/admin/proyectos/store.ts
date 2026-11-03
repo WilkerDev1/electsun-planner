@@ -123,7 +123,7 @@ export function useProjects(today: string, notify: (message: string, tone?: "ok"
             // Una respuesta antigua no pisa un estado más nuevo (por ejemplo, un archivado ya aplicado).
             if (isStaleResponse(confirmed.current.get(id)?.version, project.version)) continue;
             confirmed.current.set(id, project);
-            setServerWarnings({ [id]: saved.warnings ?? [] });
+            setServerWarnings((prev) => withWarnings(prev, id, saved.warnings ?? []));
             setLastError(null);
             // Si hay más cambios en cola, la fila sigue mostrando la versión optimista.
             setRows((prev) =>
@@ -174,7 +174,7 @@ export function useProjects(today: string, notify: (message: string, tone?: "ok"
             })
           : prev,
       );
-      setServerWarnings({});
+      setServerWarnings((prev) => withWarnings(prev, id, undefined));
       const q = queues.current.get(id) ?? { busy: false, pending: null };
       queues.current.set(id, q);
       q.pending = { ...q.pending, ...fields };
@@ -257,7 +257,8 @@ export function useProjects(today: string, notify: (message: string, tone?: "ok"
       }
     }
     if (failed !== null) {
-      notifyRef.current(changed > 0 ? `${failed} Se completaron ${changed} de ${ids.length}.` : failed, "danger");
+      const review = withErrors ? ` Revisa los avisos de ${withErrors} ${withErrors === 1 ? "proyecto restaurado" : "proyectos restaurados"}.` : "";
+      notifyRef.current(changed > 0 ? `${failed} Se completaron ${changed} de ${ids.length}.${review}` : failed, "danger");
       await loadProjects().catch(() => undefined);
       return changed > 0 ? changed : null;
     }

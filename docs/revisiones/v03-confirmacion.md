@@ -160,3 +160,5 @@ Comprobado: `npm run typecheck`, `npm test` (176 de 176, con la base de pruebas 
 Playwright completo (`npx playwright test`): 17 de 17.
 
 Correcciones de la revisión final: el cliente (`setArchived` y `archiveMany`) usa los avisos del servidor al desarchivar y los borra al archivar, con un aviso breve si hay errores; `archive-bulk` guarda todos y valida después, así los choques entre proyectos restaurados juntos salen en ambos; el catálogo de preparación compara nombre y código con `squash` (exportada desde `server/xlsx.ts`, la misma clave que el Excel); y la prueba que crea «XQ» limpia en `finally`.
+
+Ajustes finales: `setServerWarnings` ya no pisa los avisos de otros proyectos (guardar y editar solo tocan la clave del proyecto); en el catálogo de preparación una clave `squash` vacía (nombre sin letras ni números latinos) no se compara, para no declarar iguales dos nombres distintos; y si un lote de `archiveMany` falla, el aviso de error incluye los proyectos restaurados que requieren revisión.

@@ -30,22 +30,27 @@ const lockCatalog = (c: PoolClient) => c.query("SELECT pg_advisory_xact_lock(has
 
 /** Código y nombre únicos con la misma clave que la importación de Excel (`squash`: sin mayúsculas, tildes ni signos). */
 async function assertUnique(c: PoolClient, f: { code?: string; name?: string }, exceptId?: string) {
+  // Una clave vacía (texto sin letras ni números latinos) no identifica nada: dos de ellas no son «iguales».
+  const same = (a: string, b: string) => {
+    const k = squash(a);
+    return k !== "" && k === squash(b);
+  };
   const others = (await c.query("SELECT code,name FROM prep_items WHERE ($1::uuid IS NULL OR id<>$1)", [exceptId ?? null])).rows as { code: string; name: string }[];
   if (f.code !== undefined) {
     const hit = others.find((o) => o.code === f.code);
     if (hit) throw httpError(409, `El código ${f.code} ya lo usa «${hit.name}».`);
   }
   if (f.name !== undefined) {
-    const hit = others.find((o) => squash(o.name) === squash(f.name!));
+    const hit = others.find((o) => same(o.name, f.name!));
     if (hit) throw httpError(409, `Ya existe un parámetro llamado «${hit.name}».`);
   }
   // La cabecera del Excel de un parámetro es su nombre: no puede leerse como el código de otro, ni al revés.
   if (f.name !== undefined) {
-    const hit = others.find((o) => squash(o.code) === squash(f.name!));
+    const hit = others.find((o) => same(o.code, f.name!));
     if (hit) throw httpError(422, `El nombre «${f.name}» coincide con el código de «${hit.name}» (${hit.code}). Elige otro nombre.`);
   }
   if (f.code !== undefined) {
-    const hit = others.find((o) => squash(o.name) === squash(f.code!));
+    const hit = others.find((o) => same(o.name, f.code!));
     if (hit) throw httpError(422, `El código «${f.code}» coincide con el nombre de «${hit.name}». Elige otro código.`);
   }
 }
