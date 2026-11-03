@@ -21,8 +21,7 @@ import {
   workdayIndex,
   missingPrep,
   type ISODate,
-  type StatusKind,
-} from "./domain.js";
+  type StatusKind, monogramColors } from "./domain.js";
 import type { Project } from "./contracts/projects.js";
 import type { Status } from "./contracts/statuses.js";
 import type { Company, Team } from "./contracts/equipo.js";
@@ -169,10 +168,9 @@ export type MuralModel = {
 
 /** Color de empresa → colores del monograma: fondo muy claro y texto oscuro del mismo tono. */
 export function companyTint(c: { code: string; name: string; color: string }): CompanyTint {
-  const rgb = [1, 3, 5].map((i) => parseInt(c.color.slice(i, i + 2), 16));
-  const mix = (toward: number, k: number) =>
-    "#" + rgb.map((v) => Math.round(v * (1 - k) + toward * k).toString(16).padStart(2, "0")).join("").toUpperCase();
-  return { code: c.code, name: c.name, dot: c.color.toUpperCase(), fg: mix(0, 0.35), bg: mix(255, 0.85) };
+  // Mismos colores de monograma que la tabla y el móvil (shared/domain.ts).
+  const { bg, fg } = monogramColors(c.color);
+  return { code: c.code, name: c.name, dot: c.color.toUpperCase(), fg, bg };
 }
 
 const UNKNOWN_COMPANY = { code: "··", name: "Sin empresa", color: "#98A2B3" };

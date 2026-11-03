@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../ui/api";
 import { Banner, Button } from "../../ui/components";
-import { ConfirmDialog } from "../cuentas/Modal";
+import { ConfirmDialog } from "../../ui/Modal";
 import { LinkSecretDialog } from "../cuentas/LinkSecretDialog";
 import type { AccessLink, LinkSecret } from "../../../shared/contracts/access";
 import { Section, ago, inputClass, smallButton } from "./ui";

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../ui/api";
 import { Banner, Button, Field } from "../../ui/components";
-import { Modal } from "../cuentas/Modal";
+import { Modal } from "../../ui/Modal";
 import { addDays, dayLabel } from "../../../shared/domain";
 import type { Notice } from "../../../shared/contracts/mural";
 import { Section, inputClass, smallButton } from "./ui";
