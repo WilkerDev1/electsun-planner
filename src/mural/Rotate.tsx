@@ -1,10 +1,15 @@
 import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useFit, NO_PAGES, type FitOptions, type Piece, type Rich } from "./Fit";
 
 // Rotación del mural (MUR-01, NF-04): lo que no cabe va en marquesina (una línea horizontal) o en páginas (listas y rejillas).
 // Solo se anima con `transform` y `opacity`, y el cambio de página lo marca un temporizador por página, no un intervalo por fotograma.
 
-/** Velocidad de la marquesina en píxeles del lienzo de 1920. */
+/** Velocidad base de la marquesina en píxeles del lienzo de 1920. */
 export const SCROLL_PX_PER_S = 60;
+/** Tope de velocidad: por encima de esto el texto no se lee bien a 3–4 m. */
+export const MAX_SCROLL_PX_PER_S = 90;
+/** Una vuelta completa no debería tardar más de esto: si tardaría más a 60 px/s, se sube la velocidad (hasta el tope). */
+export const MAX_CYCLE_S = 60;
 /** Pausa al empezar cada vuelta de la marquesina. */
 export const MARQUEE_PAUSE_S = 2;
 /** Tiempo que se muestra cada página. */
@@ -32,11 +37,16 @@ export function nextIndex(index: number, count: number): number {
   return count <= 1 ? 0 : (clampIndex(index, count) + 1) % count;
 }
 
+/** Velocidad de la marquesina según lo que recorre: 60 px/s, o más (hasta 90) si una vuelta tardaría más de 60 s. */
+export function marqueeSpeed(shift: number): number {
+  return Math.min(MAX_SCROLL_PX_PER_S, Math.max(SCROLL_PX_PER_S, shift / MAX_CYCLE_S));
+}
+
 /**
  * Tiempos de la marquesina. Recorre una copia más la separación (`shift`) a `speed` px/s y, en cada vuelta,
  * espera `pauseS` al principio. `holdPct` es el tramo de la animación que pasa parado.
  */
-export function marqueeTiming(contentPx: number, gapPx: number, speed = SCROLL_PX_PER_S, pauseS = MARQUEE_PAUSE_S) {
+export function marqueeTiming(contentPx: number, gapPx: number, speed = marqueeSpeed(contentPx + gapPx), pauseS = MARQUEE_PAUSE_S) {
   const shift = contentPx + gapPx;
   const duration = pauseS + shift / speed;
   return { shift, duration, holdPct: (pauseS / duration) * 100 };
@@ -53,8 +63,13 @@ function useMedia(query: string): boolean {
     if (!mq) return;
     const on = () => setMatch(mq.matches);
     on();
-    mq.addEventListener("change", on);
-    return () => mq.removeEventListener("change", on);
+    // Los navegadores antiguos de algunas TV solo tienen addListener.
+    if (mq.addEventListener) mq.addEventListener("change", on);
+    else mq.addListener(on);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener("change", on);
+      else mq.removeListener(on);
+    };
   }, [query]);
   return match;
 }
@@ -89,6 +104,11 @@ export function usePages<T>(items: readonly T[], perPage: number, intervalMs = P
   const index = clampIndex(state, count);
   const ms = reduced ? REDUCED_PAGE_MS : intervalMs;
 
+  // Si la página guardada sobra (menos páginas que antes), se guarda la válida: así, si vuelven más páginas, no se salta ninguna.
+  useEffect(() => {
+    if (state !== index) setState(index);
+  }, [state, index]);
+
   useEffect(() => {
     if (count <= 1 || hidden) return;
     const t = setTimeout(() => setState((i) => nextIndex(i, count)), ms);
@@ -122,7 +142,10 @@ export function Paged<T>({ pager, children, style }: { pager: Pager<T>; children
 export function PageNumber({ index, count }: { index: number; count: number }) {
   if (count <= 1) return null;
   return (
-    <span style={{ flexShrink: 0, fontSize: 22, fontWeight: 700, lineHeight: 1, color: "#667085", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+    <span
+      aria-label={`Página ${index + 1} de ${count}`}
+      style={{ flexShrink: 0, fontSize: 22, fontWeight: 700, lineHeight: 1, color: "#667085", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}
+    >
       {index + 1}/{count}
     </span>
   );
@@ -132,32 +155,57 @@ export function PageNumber({ index, count }: { index: number; count: number }) {
 
 /**
  * Una línea horizontal. Si cabe, se queda quieta. Si no cabe, repite el contenido con una copia `aria-hidden`
- * separada por `gap` y lo desplaza de derecha a izquierda a 60 px/s, con una pausa de 2 s al empezar cada vuelta.
- * Con movimiento reducido no se desplaza: muestra un elemento cada vez, como las páginas.
+ * separada por `gap` y lo desplaza de derecha a izquierda, con una pausa de 2 s al empezar cada vuelta.
+ * Con movimiento reducido no se desplaza: muestra un trozo cada vez, medido para que quepa en `box.maxH`.
  */
-export function Marquee({ items, gap = 48, separator, style }: { items: ReactNode[]; gap?: number; separator?: ReactNode; style?: CSSProperties }) {
+export function Marquee<T>({
+  items,
+  render,
+  gap = 48,
+  separator,
+  box,
+  style,
+}: {
+  items: readonly Rich<T>[];
+  render: (p: Piece<T>) => ReactNode;
+  gap?: number;
+  separator?: ReactNode;
+  box: FitOptions;
+  style?: CSSProperties;
+}) {
   const reduced = useReducedMotion();
-  if (reduced) return <OneAtATime items={items} style={style} />;
-  return <ScrollLine items={items} gap={gap} separator={separator} style={style} />;
+  if (reduced) return <OneAtATime items={items} render={render} box={box} style={style} />;
+  return <ScrollLine items={items} render={render} gap={gap} separator={separator} style={style} />;
 }
 
-function OneAtATime({ items, style }: { items: ReactNode[]; style?: CSSProperties }) {
-  const pager = usePages(items, 1, REDUCED_PAGE_MS);
+function OneAtATime<T>({ items, render, box, style }: { items: readonly Rich<T>[]; render: (p: Piece<T>) => ReactNode; box: FitOptions; style?: CSSProperties }) {
+  const { pages, probe } = useFit(items, { ...box, maxPer: 1, gap: 0 });
+  const pager = usePages(pages ?? NO_PAGES, 1, REDUCED_PAGE_MS);
   return (
-    <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", overflow: "hidden", ...style }}>
-      <Paged pager={pager} style={{ flex: 1, justifyContent: "center" }}>
-        {(page) => <div style={{ display: "flex", alignItems: "center", minWidth: 0 }}>{page}</div>}
+    <div style={{ flex: 1, minWidth: 0, position: "relative", display: "flex", alignItems: "center", overflow: "hidden", ...style }}>
+      {probe}
+      <Paged pager={pager}>
+        {(page) => (
+          <div style={{ flex: 1, minHeight: 0, width: "100%", display: "flex", alignItems: "center" }}>
+            {(page[0] ?? []).map((p, i) => (
+              <div key={i} style={{ width: "100%" }}>
+                {render(p)}
+              </div>
+            ))}
+          </div>
+        )}
       </Paged>
     </div>
   );
 }
 
-function ScrollLine({ items, gap, separator, style }: { items: ReactNode[]; gap: number; separator?: ReactNode; style?: CSSProperties }) {
+function ScrollLine<T>({ items, render, gap, separator, style }: { items: readonly Rich<T>[]; render: (p: Piece<T>) => ReactNode; gap: number; separator?: ReactNode; style?: CSSProperties }) {
   const id = "mq" + useId().replace(/[^a-zA-Z0-9]/g, "");
   const outer = useRef<HTMLDivElement>(null);
   const first = useRef<HTMLDivElement>(null);
   // Ancho de una copia cuando el contenido no cabe; 0 si cabe y se queda quieto.
   const [content, setContent] = useState(0);
+  const whole = useMemo(() => items.map((it): Piece<T> => ({ head: it.head, body: it.body, first: true, data: it.data })), [items]);
 
   // offsetWidth no se ve afectado por el `transform` de ScaledCanvas: se mide en píxeles del lienzo.
   useLayoutEffect(() => {
@@ -172,25 +220,29 @@ function ScrollLine({ items, gap, separator, style }: { items: ReactNode[]; gap:
     return () => ro.disconnect();
   }, []);
 
-  const row = (copy?: boolean) => (
-    <div ref={copy ? undefined : first} aria-hidden={copy || undefined} style={{ display: "flex", alignItems: "center", gap, flexShrink: 0 }}>
-      {items.map((it, i) => (
+  const t = content ? marqueeTiming(content, gap) : null;
+  // Cada elemento lleva su separador detrás, también el último: así la copia empieza tras un separador.
+  // Si todo cabe, el último separador de la única copia se oculta sin quitarle sitio (su ancho mide el recorrido).
+  const row = (copy: boolean) => (
+    <div ref={copy ? undefined : first} aria-hidden={copy || undefined} style={{ display: "flex", alignItems: "center", gap, flexShrink: 0, whiteSpace: "nowrap" }}>
+      {whole.map((p, i) => (
         <Fragment key={i}>
-          {it}
-          {separator}
+          {render(p)}
+          {separator && (
+            <span style={{ display: "flex", flexShrink: 0, visibility: !copy && !t && i === whole.length - 1 ? "hidden" : undefined }}>{separator}</span>
+          )}
         </Fragment>
       ))}
     </div>
   );
 
-  const t = content ? marqueeTiming(content, gap) : null;
   return (
     <div ref={outer} style={{ flex: 1, minWidth: 0, position: "relative", overflow: "hidden", display: "flex", alignItems: "center", ...style }}>
       {t && (
         <style>{`@keyframes ${id}{0%,${t.holdPct.toFixed(3)}%{transform:translateX(0)}100%{transform:translateX(-${t.shift}px)}}`}</style>
       )}
       <div style={{ display: "flex", alignItems: "center", gap, flexShrink: 0, width: "max-content", animation: t ? `${id} ${t.duration.toFixed(3)}s linear infinite` : undefined, willChange: t ? "transform" : undefined }}>
-        {row()}
+        {row(false)}
         {t && row(true)}
       </div>
     </div>

@@ -74,14 +74,15 @@ test("el mural de TV sigue mostrando datos y avisa «Sin conexión» al perder l
   const context = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
   const page = await context.newPage();
   await page.goto(tv.path);
-  await expect(page.getByText("Sr. Herrera").first()).toBeVisible();
+  // El mural rota: «Sr. Herrera» puede estar en otra página. Se espera a que aparezca en el ciclo (MUR-14), sin rebajar la comprobación.
+  await expect(page.getByText("Sr. Herrera").first()).toBeVisible({ timeout: 30000 });
   await expect(page.getByText(/Actualizado/)).toBeVisible();
 
   await context.setOffline(true);
   // Sin red, la pantalla lo detecta en su siguiente lectura; se adelanta con el evento del navegador.
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
   await expect(page.getByText(/Sin conexión/)).toBeVisible({ timeout: 15000 });
-  await expect(page.getByText("Sr. Herrera").first()).toBeVisible();
+  await expect(page.getByText("Sr. Herrera").first()).toBeVisible({ timeout: 30000 });
 
   await context.setOffline(false);
   await page.evaluate(() => window.dispatchEvent(new Event("online")));

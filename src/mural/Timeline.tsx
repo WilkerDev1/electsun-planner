@@ -4,6 +4,7 @@ import { shortName, type MuralModel, type NoticeLine, type TimelineGroup, type T
 import { ACCENT, Clock, FONT, Flag, SunLogo, TODAY_COLOR, ellipsis, pct, updatedText, type ScreenProps } from "./shared";
 import { PatternDot } from "./Mark";
 import { PageNumber, Paged, usePages } from "./Rotate";
+import { NO_PAGES, useFit, type FitOptions, type Piece, type Rich } from "./Fit";
 
 // Diseño "timeline por fila" (design/v4/V4Mural.dc.html, MUR-08): una fila por proyecto activo con su barra.
 // Lo que no cabe pasa de página (Rotate.tsx): filas por grupo, fichas de "Esperando fecha" y avisos de la derecha.
@@ -11,7 +12,7 @@ import { PageNumber, Paged, usePages } from "./Rotate";
 const COLS = "72px minmax(0, 1fr) 200px 1120px";
 const GRID_PX = 1120;
 const GAP = 20;
-/** Pie: "Esperando fecha" y avisos. Caben 6 fichas (3 × 2) y hasta 4 líneas de avisos. */
+/** Pie: "Esperando fecha" y avisos. Caben 4 fichas (2 × 2) y el texto de los avisos en 120 px. */
 const FOOTER_H = 164;
 /** Alto libre para las filas: 1000 de lienzo − cabecera 88 − pie 164 − separaciones 40 − relleno 28 − encabezado 66 − indicador 30. */
 const ROWS_AREA = 584;
@@ -22,11 +23,13 @@ const SIZE = {
   obra: { row: 80, bar: 40, name: 30, badge: 56 },
   prog: { row: 64, bar: 30, name: 26, badge: 42 },
 } as const;
-const CARD_H = 60;
-const CARDS_PER_PAGE = 6;
-/** Avisos por página: líneas de ~44 caracteres en el cuadro de la derecha, como mucho 4 por página. */
-const NOTICE_LINES = 4;
-const NOTICE_CHARS = 44;
+/** Ficha de "Esperando fecha": dos líneas de texto que pueden ocupar dos líneas cada una sin cortarse (78 px). */
+const CARD_H = 78;
+const CARD_GAP = 8;
+const CARDS_PER_PAGE = 4;
+/** Alto del texto de los avisos: el pie (164) menos su relleno (20) y la fila del indicador (24). */
+const NOTE_AREA = 120;
+const NOTE_GAP = 8;
 
 export function Timeline({ view, live }: ScreenProps) {
   const { model, settings } = view;
@@ -95,29 +98,6 @@ export function planTimeline(groups: TimelineGroup[], area: number): Fitted[][] 
     }
   }
   if (page.length) pages.push(page);
-  return pages;
-}
-
-/**
- * Agrupa los avisos en páginas que no cortan ninguno a la mitad: cada página suma como mucho `NOTICE_LINES` líneas
- * estimadas. Un aviso más largo que eso va solo en su página.
- */
-export function packNotices(lines: NoticeLine[]): NoticeLine[][] {
-  const pages: NoticeLine[][] = [];
-  let cur: NoticeLine[] = [];
-  let used = 0;
-  for (const n of lines) {
-    const len = (n.project ? n.project.length + 1 : 0) + n.text.length;
-    const need = Math.max(1, Math.ceil(len / NOTICE_CHARS));
-    if (cur.length && used + need > NOTICE_LINES) {
-      pages.push(cur);
-      cur = [];
-      used = 0;
-    }
-    cur.push(n);
-    used += need;
-  }
-  if (cur.length) pages.push(cur);
   return pages;
 }
 
@@ -211,7 +191,7 @@ function GroupRows({ f, cols, weeks, todayCol, todayAt }: { f: Fitted; cols: num
         <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: "0.14em", color: g.fg }}>{g.label}</span>
       </div>
       {f.rows.map((r) => (
-        <div key={r.id} style={{ height: rowH, display: "grid", gridTemplateColumns: COLS, columnGap: 16, alignItems: "center", borderTop: "1px solid #EEF0F3" }}>
+        <div key={r.id} style={{ height: rowH, boxSizing: "border-box", display: "grid", gridTemplateColumns: COLS, columnGap: 16, alignItems: "center", borderTop: "1px solid #EEF0F3" }}>
           <span
             style={{
               width: 60,
@@ -297,14 +277,20 @@ function GroupRows({ f, cols, weeks, todayCol, todayAt }: { f: Fitted; cols: num
 
 const CHIP = { pause: { bg: "#FDECF1", fg: "#A11C47" }, other: { bg: "#EFF1F5", fg: "#1B1F27" } } as const;
 
+/** Texto de los avisos de la derecha: el mismo que mide `NOTE_FIT`. */
+const NOTE_TEXT: CSSProperties = { fontSize: 22, lineHeight: 1.2 };
+/** Avisos: cada uno se mide en su ancho real y se parte en trozos que caben en `NOTE_AREA` (AVI-03, sin elipsis). */
+const NOTE_FIT: FitOptions = { maxH: NOTE_AREA, gap: NOTE_GAP, padL: 22, bodyWeight: (h) => (h ? 600 : 800), text: NOTE_TEXT };
+
 function Footer({ model, show }: { model: MuralModel; show: boolean }) {
   const w = model.waiting;
   // Los pausados van al final, como en el artboard.
-  const items: WaitingItem[] = [...w.items.filter((i) => i.tone !== "pause"), ...w.items.filter((i) => i.tone === "pause")];
+  const items = useMemo((): WaitingItem[] => [...w.items.filter((i) => i.tone !== "pause"), ...w.items.filter((i) => i.tone === "pause")], [w.items]);
   const cards = usePages(items, CARDS_PER_PAGE);
   const lines = model.notices;
-  const linePages = useMemo(() => packNotices(lines), [lines]);
-  const notes = usePages(linePages, 1);
+  const noteItems = useMemo((): Rich<NoticeLine>[] => lines.map((n) => ({ head: n.project, body: n.text, data: n })), [lines]);
+  const fit = useFit(noteItems, NOTE_FIT);
+  const notes = usePages(fit.pages ?? NO_PAGES, 1);
   return (
     <footer style={{ height: FOOTER_H, flexShrink: 0, display: "flex", gap: 20 }}>
       {show && (
@@ -321,7 +307,7 @@ function Footer({ model, show }: { model: MuralModel; show: boolean }) {
             ) : (
               <Paged pager={cards}>
                 {(page) => (
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gridTemplateRows: `repeat(2, ${CARD_H}px)`, gap: 8, alignContent: "center" }}>
+                  <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gridTemplateRows: `repeat(2, ${CARD_H}px)`, gap: CARD_GAP, alignContent: "center" }}>
                     {page.map((b) => (
                       <WaitCard key={b.id} b={b} />
                     ))}
@@ -333,19 +319,22 @@ function Footer({ model, show }: { model: MuralModel; show: boolean }) {
         </div>
       )}
       <div style={{ flex: 1, minWidth: 0, background: "#FFFFFF", borderRadius: 22, padding: "10px 24px", boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
-        {lines.length === 0 ? (
-          <span style={{ fontSize: 22, fontWeight: 600, color: "#5F6675" }}>Sin avisos por ahora</span>
-        ) : (
-          <Paged pager={notes}>
-            {(page) => (
-              <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: 6, flex: 1 }}>
-                {(page[0] ?? []).map((n, i) => (
-                  <NoticeText key={i} n={n} />
-                ))}
-              </div>
-            )}
-          </Paged>
-        )}
+        <div style={{ flex: 1, minHeight: 0, position: "relative", display: "flex", flexDirection: "column" }}>
+          {fit.probe}
+          {lines.length === 0 ? (
+            <span style={{ fontSize: 22, fontWeight: 600, color: "#5F6675" }}>Sin avisos por ahora</span>
+          ) : (
+            <Paged pager={notes}>
+              {(page) => (
+                <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: NOTE_GAP, flex: 1 }}>
+                  {(page[0] ?? []).map((p, i) => (
+                    <NoticeText key={i} p={p} />
+                  ))}
+                </div>
+              )}
+            </Paged>
+          )}
+        </div>
         {(notes.count > 1 || model.noticesMore > 0) && (
           <div style={{ height: 24, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, fontSize: 22, fontWeight: 700, color: "#5F6675" }}>
             {model.noticesMore > 0 && <span>+{model.noticesMore} más</span>}
@@ -357,29 +346,33 @@ function Footer({ model, show }: { model: MuralModel; show: boolean }) {
   );
 }
 
-/** Una ficha de "Esperando fecha": nombre y días (o "en pausa") bien separados, bandera visible. */
+/** Una ficha de "Esperando fecha": nombre (puede ocupar dos líneas) y días o "en pausa", bien separados, bandera visible. */
 function WaitCard({ b }: { b: WaitingItem }) {
   const c = b.tone === "pause" ? CHIP.pause : CHIP.other;
   const sub = b.tone === "pause" ? "en pausa" : b.days !== null ? `${b.days} ${b.days === 1 ? "día" : "días"}` : "";
   return (
-    <div style={{ height: CARD_H, minWidth: 0, boxSizing: "border-box", display: "flex", flexDirection: "column", justifyContent: "center", gap: 2, padding: "0 14px", borderRadius: 12, background: c.bg, color: c.fg, lineHeight: 1.15 }}>
+    <div style={{ height: CARD_H, minWidth: 0, boxSizing: "border-box", display: "flex", flexDirection: "column", justifyContent: "center", gap: 2, padding: "0 14px", borderRadius: 12, background: c.bg, color: c.fg, lineHeight: 1.1 }}>
       <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
         {b.priority && <Flag size={22} />}
-        <span style={{ fontSize: 22, fontWeight: 800, ...ellipsis }}>{shortName(b.name)}</span>
+        <span style={{ fontSize: 22, fontWeight: 800, minWidth: 0, overflowWrap: "anywhere" }}>{shortName(b.name)}</span>
       </span>
-      <span style={{ fontSize: 22, fontWeight: b.tone === "pause" ? 800 : 600, opacity: b.tone === "pause" ? 1 : 0.85, ...ellipsis }}>{sub}</span>
+      <span style={{ fontSize: 22, fontWeight: b.tone === "pause" ? 800 : 600, opacity: b.tone === "pause" ? 1 : 0.85, overflowWrap: "anywhere" }}>{sub}</span>
     </div>
   );
 }
 
-/** Un aviso completo: el proyecto en negrita y el texto entero, con ajuste de línea y sin elipsis (AVI-03). */
-function NoticeText({ n }: { n: NoticeLine }) {
+/** Un aviso (o un trozo): el punto en el primer trozo, el proyecto en negrita y el texto completo (AVI-03). */
+function NoticeText({ p }: { p: Piece<NoticeLine> }) {
   return (
-    <span style={{ display: "flex", alignItems: "flex-start", gap: 12, fontSize: 22, lineHeight: 1.2, color: n.project ? "#3F4859" : "#1B1F27", fontWeight: n.project ? 600 : 800 }}>
-      <span style={{ flexShrink: 0, width: 10, height: 10, marginTop: 7, borderRadius: "50%", background: ACCENT }} />
-      <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>
-        {n.project && <span style={{ fontWeight: 800, color: "#1B1F27" }}>{n.project} </span>}
-        {n.text}
+    <span style={{ display: "flex", alignItems: "flex-start", gap: 12, fontSize: 22, lineHeight: 1.2, color: "#1B1F27" }}>
+      {p.first ? (
+        <span style={{ flexShrink: 0, width: 10, height: 10, marginTop: 7, borderRadius: "50%", background: ACCENT }} />
+      ) : (
+        <span style={{ flexShrink: 0, width: 10 }} />
+      )}
+      <span style={{ minWidth: 0, overflowWrap: "anywhere", fontWeight: p.head ? 600 : 800, color: p.head ? "#3F4859" : "#1B1F27" }}>
+        {p.head && <span style={{ fontWeight: 800, color: "#1B1F27" }}>{`${p.head} `}</span>}
+        {p.body}
       </span>
     </span>
   );
