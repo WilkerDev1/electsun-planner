@@ -390,3 +390,15 @@ test("crear, canjear, rotar y revocar el enlace móvil de un empleado (ACC-02, A
   assert.equal(await auditCount("link.rotate", linkId), 2);
   assert.equal(await auditCount("link.revoke", linkId), 1);
 });
+
+test("seguridad: tope de intentos por cuenta y token falso sin coste de argon2", async () => {
+  const email = "nadie-" + Date.now() + "@example.test";
+  let last = 0;
+  for (let i = 0; i < 11; i++)
+    last = (await ctx.request("/auth/login", "POST", { email, password: "incorrecta-" + i }, "", { "X-Forwarded-For": "10.0.0." + i })).status;
+  assert.equal(last, 429);
+  const t0 = Date.now();
+  const r = await ctx.request("/auth/accept", "POST", { token: "x".repeat(43), name: "X", password: "una-clave-larga-123" });
+  assert.equal(r.status, 422);
+  assert.ok(Date.now() - t0 < 500);
+});

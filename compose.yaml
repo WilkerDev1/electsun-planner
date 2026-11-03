@@ -43,6 +43,8 @@ services:
       PLANNER_TODAY: ${PLANNER_TODAY:-}
     networks: [front, database]
     read_only: true
+    mem_limit: 768m
+    pids_limit: 256
     tmpfs: [/tmp:size=128m]
     security_opt: [no-new-privileges:true]
     healthcheck:

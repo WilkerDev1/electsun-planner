@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import ExcelJS from "exceljs";
+import JSZip from "jszip";
 import type { PoolClient } from "pg";
 import type { Db } from "./db.js";
 import { PROJECT_COLUMNS, listProjects } from "./queries.js";
@@ -89,11 +90,31 @@ type Plan =
  * Lee el libro y lo compara con los proyectos. Con `dry` no escribe nada (XLS-02); si no, escribe en la
  * transacción de `c` las filas válidas y deja una entrada de historial por proyecto (XLS-03).
  */
+const MAX_UNZIPPED = 20 * 1024 * 1024;
+const MAX_ENTRIES = 200;
+export const MAX_IMPORT_ROWS = 5000;
+
+/** Rechaza zips que se expanden demasiado antes de que exceljs los descomprima (evita bombas zip). */
+async function guardZip(buffer: Buffer) {
+  let zip: JSZip;
+  try {
+    zip = await JSZip.loadAsync(buffer);
+  } catch {
+    throw Object.assign(new Error("No se pudo leer el archivo. Verifica que sea un Excel (.xlsx) válido."), { status: 422 });
+  }
+  const files = Object.values(zip.files);
+  // `_data.uncompressedSize` es el tamaño declarado en el índice del zip, sin descomprimir nada.
+  const total = files.reduce((sum, f) => sum + ((f as unknown as { _data?: { uncompressedSize?: number } })._data?.uncompressedSize ?? 0), 0);
+  if (files.length > MAX_ENTRIES || total > MAX_UNZIPPED)
+    throw Object.assign(new Error("El archivo es demasiado grande para importarlo. Divide el Excel en partes más pequeñas."), { status: 422 });
+}
+
 export async function importProjects(
   c: PoolClient,
   buffer: Buffer,
   opts: { dry: boolean; actorId: string; today: string },
 ): Promise<ImportReport> {
+  await guardZip(buffer);
   const wb = new ExcelJS.Workbook();
   try {
     await wb.xlsx.load(buffer as unknown as ExcelJS.Buffer);
@@ -162,6 +183,8 @@ export async function importProjects(
   const seen = new Map<string, number>();
   let unchanged = 0;
 
+  if (sheet.actualRowCount > MAX_IMPORT_ROWS || sheet.rowCount - header.row > MAX_IMPORT_ROWS * 4)
+    throw Object.assign(new Error(`El Excel tiene demasiadas filas (máximo ${MAX_IMPORT_ROWS}). Borra las filas vacías del final o divide el archivo.`), { status: 422 });
   for (let n = header.row + 1; n <= sheet.rowCount; n++) {
     const xr = sheet.getRow(n);
     const raw = (col: Col): unknown => (cols[col] === undefined ? undefined : plain(xr.getCell(cols[col]!).value));

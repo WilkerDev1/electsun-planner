@@ -11,27 +11,42 @@ let version = Date.now();
 export function publishChange(reason = "change") {
   version = Math.max(version + 1, Date.now());
   const msg = `event: change\ndata: ${JSON.stringify({ version, reason })}\n\n`;
-  for (const res of clients) res.write(msg);
+  for (const res of clients) {
+    // Un cliente que no lee (más de 1 MB pendiente) se desconecta en vez de acumular memoria.
+    if (res.writableLength > 1_000_000) res.end();
+    else res.write(msg);
+  }
 }
 
 export const currentVersion = () => version;
 
-async function stillAllowed(req: Request): Promise<boolean> {
+/** Devuelve la credencial (cuenta o enlace) que autoriza el flujo, o null. */
+async function credential(req: Request): Promise<string | null> {
   const t = req.cookies?.[SESSION_COOKIE];
   if (t) {
     const r = await pool.query(
-      "SELECT 1 FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.hash=$1 AND s.expires_at>now() AND u.active",
+      "SELECT u.id FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.hash=$1 AND s.expires_at>now() AND u.active",
       [hash(t)],
     );
-    if (r.rowCount) return true;
+    if (r.rowCount) return "user:" + r.rows[0].id;
   }
   const link = typeof req.query.link === "string" ? req.query.link : undefined;
-  return !!(link ? await findDevice(req, "tv", link) : await findDevice(req, "mobile"));
+  const d = link ? await findDevice(req, "tv", link) : await findDevice(req, "mobile");
+  return d ? "link:" + d.id : null;
 }
+
+// Máximo de flujos abiertos por cuenta o enlace: al abrir uno más se cierra el más antiguo.
+const MAX_PER_CREDENTIAL = 5;
+const byCredential = new Map<string, Response[]>();
 
 /** GET /api/events (API-02): cuenta, TV (`?link=:id`) o móvil. Revisa el permiso cada 60 s. */
 export async function eventsHandler(req: Request, res: Response) {
-  if (!(await stillAllowed(req))) return res.status(401).json({ message: "Sin acceso a las actualizaciones." });
+  const key = await credential(req);
+  if (!key) return res.status(401).json({ message: "Sin acceso a las actualizaciones." });
+  const open = byCredential.get(key) ?? [];
+  while (open.length >= MAX_PER_CREDENTIAL) open.shift()!.end();
+  open.push(res);
+  byCredential.set(key, open);
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("X-Accel-Buffering", "no");
@@ -43,7 +58,7 @@ export async function eventsHandler(req: Request, res: Response) {
     ticks++;
     if (ticks % 2 === 0) {
       try {
-        if (!(await stillAllowed(req))) {
+        if ((await credential(req)) !== key) {
           res.write("event: revoked\ndata: {}\n\n");
           return res.end();
         }
@@ -56,5 +71,8 @@ export async function eventsHandler(req: Request, res: Response) {
   req.on("close", () => {
     clearInterval(timer);
     clients.delete(res);
+    const list = byCredential.get(key)?.filter((r) => r !== res) ?? [];
+    if (list.length) byCredential.set(key, list);
+    else byCredential.delete(key);
   });
 }

@@ -511,3 +511,21 @@ test("importar: un proyecto archivado no se duplica ni bloquea al activo del mis
   const active = await upload(await workbook(row), "1");
   assert.equal(active.data.rows[0].action, "update");
 });
+
+test("importar: rechaza hojas con demasiadas filas y zips que se expanden demasiado (seguridad)", async () => {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Hoja1");
+  ws.addRow(["Contratista", "Proyecto", "Estado"]);
+  ws.getCell("A60000").value = "x"; // una celda perdida al final
+  const far = await upload(Buffer.from(await wb.xlsx.writeBuffer()), "1");
+  assert.equal(far.status, 422);
+  assert.match(far.data.message ?? "", /demasiadas filas/);
+
+  const JSZip = (await import("jszip")).default;
+  const zip = new JSZip();
+  zip.file("xl/relleno.xml", "0".repeat(25 * 1024 * 1024));
+  const bomb = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
+  const r = await upload(bomb, "1");
+  assert.equal(r.status, 422);
+  assert.match(r.data.message ?? "", /demasiado grande/);
+});

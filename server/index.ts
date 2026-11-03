@@ -146,6 +146,14 @@ export async function start() {
         [crypto.randomUUID(), process.env.SEED_OFFICE_EMAIL.toLowerCase(), await passwordHash(process.env.SEED_OFFICE_PASSWORD)],
       );
   }
+  // Sesiones de cuenta y de dispositivo caducadas: se purgan al arrancar y cada hora.
+  const purge = () =>
+    pool
+      .query("DELETE FROM sessions WHERE expires_at<now(); DELETE FROM device_sessions WHERE expires_at<now(); DELETE FROM invitations WHERE expires_at<now()-interval '30 days'")
+      .catch(() => {});
+  await purge();
+  const purgeTimer = setInterval(purge, 3600000);
+  purgeTimer.unref();
   const server = app.listen(Number(process.env.PORT ?? 8091), "0.0.0.0", () => console.log("Electsun Planner listo"));
   process.on("SIGTERM", () => server.close(() => void pool.end()));
   return server;

@@ -4,6 +4,9 @@
 }
 :80 {
 	encode zstd gzip
+	# Las sondas de salud solo las usa Docker, directo al contenedor.
+	respond /healthz 404
+	respond /readyz 404
 	request_body {
 		max_size 6MB
 	}

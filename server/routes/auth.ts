@@ -24,7 +24,18 @@ auth.get("/me", (req, res) => {
   res.json(body);
 });
 
-auth.post("/login", authLimiter, async (req, res) => {
+/** Tope por cuenta, además del de IP: rotar IPs no sirve para probar contraseñas de una misma cuenta. */
+const accountLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 10,
+  skipSuccessfulRequests: true,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  keyGenerator: (req) => "acct:" + String(req.body?.email ?? "").toLowerCase().slice(0, 200),
+  message: { message: "Demasiados intentos para esta cuenta. Espera una hora o pide un restablecimiento." },
+});
+
+auth.post("/login", authLimiter, accountLimiter, async (req, res) => {
   const b = LoginBody.parse(req.body);
   const u = (await pool.query("SELECT id,password_hash FROM users WHERE email=$1 AND active", [b.email.toLowerCase()])).rows[0];
   // Sin cuenta también se verifica contra un hash, para no delatar por tiempo qué correos existen (AUT-01).
@@ -45,6 +56,9 @@ auth.post("/logout", async (req, res) => {
 /** Acepta una invitación o un restablecimiento (`/activar#token`). */
 auth.post("/accept", authLimiter, async (req, res) => {
   const b = AcceptBody.parse(req.body);
+  // Comprobar el token antes de calcular argon2: un token falso no debe costar CPU.
+  const pending = await pool.query("SELECT 1 FROM invitations WHERE hash=$1 AND used_at IS NULL AND expires_at>now()", [hash(b.token)]);
+  if (!pending.rowCount) throw httpError(422, "El enlace expiró o ya fue utilizado. Pide otro a administración.");
   const ph = await passwordHash(b.password);
   const uid = await transaction(async (c) => {
     const r = await c.query(

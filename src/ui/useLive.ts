@@ -8,13 +8,17 @@ type LiveState<T> = { data: T | null; error: ApiError | null; fetchedAt: Date | 
  * pide `path`, se suscribe a /api/events (con `eventsQuery`), consulta cada 60 s como respaldo
  * y guarda la última respuesta en localStorage para mostrarla sin conexión.
  */
+const CACHE_TTL = 14 * 86400000;
+
 export function useLive<T>(path: string, cacheKey: string, eventsQuery = "") {
   const [state, setState] = useState<LiveState<T>>(() => {
     try {
       const raw = localStorage.getItem(cacheKey);
       if (raw) {
         const { data, at } = JSON.parse(raw);
-        return { data, error: null, fetchedAt: new Date(at), offline: true, revoked: false };
+        // Pasados 14 días la copia local (con teléfonos del equipo) se descarta.
+        if (Date.now() - new Date(at).getTime() > CACHE_TTL) localStorage.removeItem(cacheKey);
+        else return { data, error: null, fetchedAt: new Date(at), offline: true, revoked: false };
       }
     } catch {
       /* sin almacenamiento */
@@ -37,6 +41,12 @@ export function useLive<T>(path: string, cacheKey: string, eventsQuery = "") {
       }
     } catch (e) {
       const err = e instanceof ApiError ? e : new ApiError(0, "Sin conexión");
+      if (err.status === 401 || err.status === 403)
+        try {
+          localStorage.removeItem(cacheKey);
+        } catch {
+          /* sin almacenamiento */
+        }
       setState((s) => ({ ...s, error: err, offline: err.status === 0, revoked: err.status === 401 || err.status === 403 }));
     } finally {
       inflight.current = false;

@@ -9,7 +9,7 @@ target="$backup_root/$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir "$target"
 compose=(docker compose -f compose.yaml)
 "${compose[@]}" exec -T db pg_dump -U planner -d planner -Fc > "$target/planner.dump"
-cp .env "$target/server.env"
+# .env no se copia: los secretos se guardan aparte y cifrados, no junto al dump.
 cp compose.yaml Caddyfile "$target/"
 sha256sum "$target/planner.dump" > "$target/SHA256SUMS"
 find "$backup_root" -mindepth 1 -maxdepth 1 -type d -mtime +6 -exec rm -rf -- {} +
