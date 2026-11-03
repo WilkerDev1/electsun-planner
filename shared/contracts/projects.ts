@@ -93,7 +93,12 @@ export type ImportReport = {
 };
 
 /** Archivar o desarchivar varios proyectos de una vez (PRY-10). */
-export const ArchiveBulk = z.object({ ids: z.array(id).min(1).max(200), archived: z.boolean() });
+/** `versions` es opcional: si llega la versión que vio la persona de un proyecto y ya cambió, se responde 409 y no se archiva nada. */
+export const ArchiveBulk = z.object({
+  ids: z.array(id).min(1).max(200),
+  archived: z.boolean(),
+  versions: z.record(id, z.number().int().min(1)).optional(),
+});
 export type ArchiveBulkResult = {
   /** Los proyectos pedidos, en su estado final y en el orden pedido. */
   projects: Project[];

@@ -186,7 +186,7 @@ for (const [path, archived] of [["archive", true], ["unarchive", false]] as cons
 
 // PRY-10: archivar o desarchivar varios a la vez. Una transacción, un historial por proyecto y un solo aviso a las pantallas.
 projects.post("/archive-bulk", authenticated, async (req, res) => {
-  const { ids: requested, archived } = ArchiveBulk.parse(req.body);
+  const { ids: requested, archived, versions } = ArchiveBulk.parse(req.body);
   const ids = [...new Set(requested)];
   const out = await transaction(async (c): Promise<ArchiveBulkResult> => {
     // Se bloquean en orden de id para que dos archivados en bloque a la vez no se esperen en círculo.
@@ -195,6 +195,8 @@ projects.post("/archive-bulk", authenticated, async (req, res) => {
     let changed = 0;
     for (const { id } of locked) {
       const before = (await lockProject(c, id))!;
+      if (versions?.[id] !== undefined && versions[id] !== before.version)
+        throw httpError(409, `«${before.name}» cambió mientras lo elegías. Recarga la lista y vuelve a intentarlo.`);
       if (before.archived === archived) continue;
       await saveProject(c, before, { archived }, req.user!.id, archived ? "project.archive" : "project.unarchive");
       changed++;

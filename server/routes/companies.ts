@@ -182,7 +182,7 @@ companies.get("/:id/logo", async (req, res) => {
   res.setHeader("Content-Disposition", "inline");
   res.setHeader("Content-Security-Policy", "default-src 'none'");
   res.setHeader("ETag", etag);
-  res.setHeader("Cache-Control", typeof req.query.v === "string" && req.query.v ? "private, max-age=31536000, immutable" : "private, no-cache");
+  res.setHeader("Cache-Control", req.query.v === String(logo.sha256).slice(0, 12) ? "private, max-age=31536000, immutable" : "private, no-cache");
   if (req.get("If-None-Match") === etag) return res.status(304).end();
   res.send(logo.data);
 });

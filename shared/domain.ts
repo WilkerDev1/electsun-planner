@@ -388,8 +388,8 @@ export function validateProject(
   status: StatusRules,
   others: Schedulable[],
   today: ISODate,
-  teamCode?: (id: string) => string,
-  prepCatalog: readonly PrepCatalogItem[] = [],
+  teamCode: ((id: string) => string) | undefined,
+  prepCatalog: readonly PrepCatalogItem[],
 ): Validation {
   const errors: string[] = [];
   const coded: CodedWarning[] = [];

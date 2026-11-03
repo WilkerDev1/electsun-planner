@@ -6,6 +6,7 @@ import { admin, authenticated } from "../auth.js";
 import { audit, diffOf } from "../audit.js";
 import { publishChange } from "../events.js";
 import { listPrepItems } from "../queries.js";
+import { reservedHeader } from "../xlsx.js";
 import { lockProject, prepByCode } from "../project-store.js";
 import { MAX_PREP_ITEMS, PrepItemCreate, PrepItemDelete, PrepItemPatch, type PrepItem, type PrepItemDeleted } from "../../shared/contracts/prep.js";
 
@@ -25,6 +26,9 @@ async function getItem(c: PoolClient, id: string): Promise<PrepItem | undefined>
 }
 
 /** Código y nombre únicos (el nombre sin importar mayúsculas: es la cabecera de la columna en el Excel). */
+/** Serializa las altas y los cambios de nombre o código: el conteo y la unicidad se comprueban sin carreras. */
+const lockCatalog = (c: PoolClient) => c.query("SELECT pg_advisory_xact_lock(hashtext('prep_items'))");
+
 async function assertUnique(c: PoolClient, f: { code?: string; name?: string }, exceptId?: string) {
   if (f.code !== undefined) {
     const r = await c.query("SELECT name FROM prep_items WHERE code=$1 AND ($2::uuid IS NULL OR id<>$2)", [f.code, exceptId ?? null]);
@@ -36,11 +40,20 @@ async function assertUnique(c: PoolClient, f: { code?: string; name?: string }, 
   }
 }
 
+/** El nombre y el código son cabeceras de columna en el Excel: no pueden coincidir con una columna fija (XLS-07). */
+function assertNotReserved(name: string | undefined, code: string | undefined, ownCode: string) {
+  for (const [what, text] of [["nombre", name], ["código", code]] as const)
+    if (text !== undefined && reservedHeader(text, ownCode))
+      throw httpError(422, `El ${what} «${text}» ya es una columna del Excel de proyectos. Elige otro ${what}.`);
+}
+
 prepItems.get("/", authenticated, async (_req, res) => res.json(await listPrepItems(pool)));
 
 prepItems.post("/", authenticated, admin, async (req, res) => {
   const body = PrepItemCreate.parse(req.body);
   const created = await transaction(async (c) => {
+    assertNotReserved(body.name, body.code, body.code);
+    await lockCatalog(c);
     const { n, next } = (await c.query("SELECT count(*)::int AS n, COALESCE(max(sort),0)+1 AS next FROM prep_items")).rows[0];
     if (n >= MAX_PREP_ITEMS) throw httpError(422, `El catálogo ya tiene ${MAX_PREP_ITEMS} parámetros. Quita alguno antes de agregar otro.`);
     await assertUnique(c, body);
@@ -60,10 +73,14 @@ prepItems.patch("/:id", authenticated, admin, async (req, res) => {
   const id = idParam(req.params.id);
   const { version, ...changes } = PrepItemPatch.parse(req.body);
   const out = await transaction(async (c) => {
+    await lockCatalog(c);
     await c.query("SELECT 1 FROM prep_items WHERE id=$1 FOR UPDATE", [id]);
     const before = await getItem(c, id);
     if (!before) throw httpError(404, "Ese parámetro de preparación no existe.");
     if (before.version !== version) throw httpError(409, "Otra persona cambió este parámetro. Recarga para ver la versión más reciente.");
+    const ownCode = changes.code ?? before.code;
+    if (changes.name !== undefined && changes.name !== before.name) assertNotReserved(changes.name, undefined, ownCode);
+    if (changes.code !== undefined && changes.code !== before.code) assertNotReserved(undefined, changes.code, ownCode);
     await assertUnique(c, { code: changes.code !== before.code ? changes.code : undefined, name: changes.name !== before.name ? changes.name : undefined }, id);
     const keys = Object.keys(changes) as (keyof typeof changes)[];
     if (!keys.length) return { after: before, changed: false };

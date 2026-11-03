@@ -79,11 +79,31 @@ const LEGACY_PREP_HEADERS: Record<string, string[]> = {
   EDE: ["EDE", "Carta de no objeción"],
 };
 
+/** Cabeceras fijas de la exportación que no están entre los alias de importación. */
+const FIXED_EXPORT_HEADERS = ["Preparación", "Fin real", "Prioridad"];
+
+/**
+ * ¿Esta cabecera ya es una columna fija del Excel (o una cabecera antigua de otro parámetro)? `ownCode` es el código del
+ * parámetro que la quiere: sus propias cabeceras antiguas son suyas. La API lo usa para no aceptar nombres ni códigos que choquen.
+ */
+export function reservedHeader(text: string, ownCode?: string): boolean {
+  const key = squash(text);
+  if (!key) return false;
+  if (ALIAS_INDEX.has(key) || FIXED_EXPORT_HEADERS.some((h) => squash(h) === key)) return true;
+  return Object.entries(LEGACY_PREP_HEADERS).some(([code, hs]) => code !== ownCode && hs.some((h) => squash(h) === key));
+}
+
+/** Cabecera de la columna del parámetro en la exportación: su nombre, o su código si el nombre choca con una columna fija (datos anteriores a la regla). */
+export function prepExportHeader(item: PrepCatalogItem): string {
+  if (!reservedHeader(item.name, item.code)) return item.name;
+  return reservedHeader(item.code, item.code) ? `${item.name} (${item.code})` : item.code;
+}
+
 /** Cabecera (sin tildes ni signos) → parámetro del catálogo: por nombre, por código o por una cabecera antigua. */
 function prepHeaderIndex(catalog: PrepCatalogItem[]): Map<string, string> {
   const index = new Map<string, string>();
   for (const item of catalog) {
-    for (const h of [item.name, item.code, ...(LEGACY_PREP_HEADERS[item.code] ?? [])]) {
+    for (const h of [prepExportHeader(item), item.name, item.code, ...(LEGACY_PREP_HEADERS[item.code] ?? [])]) {
       const key = squash(h);
       if (key && !index.has(key)) index.set(key, item.id);
     }
@@ -473,7 +493,7 @@ export async function exportProjects(db: Db, filter: { status?: string; q?: stri
   const wb = new ExcelJS.Workbook();
   wb.creator = "Electsun Planner";
   const ws = wb.addWorksheet("Proyectos", { views: [{ state: "frozen", ySplit: 1, xSplit: 2 }] });
-  const columns = [...EXPORT_COLUMNS, ...catalog.map((i) => ({ header: i.name, width: Math.max(12, Math.min(26, i.name.length + 2)) }))];
+  const columns = [...EXPORT_COLUMNS, ...catalog.map((i) => ({ header: prepExportHeader(i), width: Math.max(12, Math.min(26, i.name.length + 2)) }))];
   ws.columns = columns.map((x) => ({ header: x.header, width: x.width }));
   ws.getRow(1).font = { bold: true };
   ws.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2F4F7" } };

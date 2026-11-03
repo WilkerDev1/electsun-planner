@@ -127,7 +127,7 @@ export async function hasAnyAccess(req: Request): Promise<boolean> {
   const hashes = Object.entries(req.cookies ?? {})
     .filter(([name, value]) => (name === MOBILE_COOKIE || name.startsWith(TV_COOKIE_PREFIX)) && typeof value === "string")
     .map(([, value]) => hash(value as string))
-    .slice(0, 12);
+    .slice(0, 50) // tope razonable de cookies de dispositivo por petición;
   if (!hashes.length) return false;
   const r = await pool.query(
     `SELECT 1 FROM device_sessions s JOIN access_links l ON l.id=s.link_id

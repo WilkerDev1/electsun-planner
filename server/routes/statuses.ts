@@ -85,8 +85,13 @@ statuses.delete("/:id", authenticated, admin, async (req, res) => {
   const out = await transaction(async (c): Promise<StatusDeleted> => {
     const before = (await listStatuses(c)).find((s) => s.id === id);
     if (!before) throw httpError(404, "Ese estado no existe.");
-    await c.query("SELECT 1 FROM statuses WHERE id=$1 FOR UPDATE", [id]);
+    // El tipo no cambia nunca (StatusPatch no lo permite). Un bloqueo por tipo serializa los borrados del mismo tipo para que
+    // el conteo de abajo vea el resultado de los demás; después se bloquean el estado y su reemplazo en orden de id.
+    await c.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`status-kind:${before.kind}`]);
+    const lockIds = [id, ...(replacement_id && replacement_id !== id ? [replacement_id] : [])];
+    await c.query("SELECT id FROM statuses WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE", [lockIds]);
     const current = (await c.query("SELECT version FROM statuses WHERE id=$1", [id])).rows[0];
+    if (!current) throw httpError(404, "Ese estado ya no existe.");
     if (current.version !== version) throw httpError(409, "Otra persona cambió este estado. Recarga para ver la versión más reciente.");
 
     const sameKind = await c.query("SELECT count(*)::int AS n FROM statuses WHERE kind=$1", [before.kind]);
@@ -98,7 +103,7 @@ statuses.delete("/:id", authenticated, admin, async (req, res) => {
       throw httpError(422, `${plural(using.length, "proyecto usa", "proyectos usan")} el estado «${before.name}». Elige a qué estado pasan antes de borrarlo.`);
     if (replacement_id === id) throw httpError(422, "El estado de reemplazo debe ser otro.");
     const replacement = replacement_id ? (await listStatuses(c)).find((s) => s.id === replacement_id) : undefined;
-    if (replacement_id && !replacement) throw httpError(422, "El estado de reemplazo ya no existe.");
+    if (replacement_id && !replacement) throw httpError(422, "El estado de reemplazo ya no existe. Elige otro y vuelve a intentarlo.");
 
     if (replacement) {
       const problems: string[] = [];
@@ -107,7 +112,8 @@ statuses.delete("/:id", authenticated, admin, async (req, res) => {
         const p = (await lockProject(c, projectId))!;
         const merged = mergeProject(fieldsOf(p), { status_id: replacement.id }, replacement.kind, today);
         // Cambiar de tipo puede exigir fechas, equipo o motivo (VAL-01, VAL-02); con el mismo tipo no cambia ninguna regla.
-        if (replacement.kind !== before.kind) {
+        // Los archivados no están en uso: pasan sin validar (regla documentada, no bloquean el borrado).
+        if (replacement.kind !== before.kind && !p.archived) {
           const check = await validateAgainstDb(c, { ...merged, id: p.id }, replacement, today);
           if (check.errors.length) problems.push(`${p.name}: ${check.errors.join(" ")}`);
         }

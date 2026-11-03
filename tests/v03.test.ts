@@ -782,3 +782,120 @@ test("la base de pruebas ya aplicó 002_v03.sql una sola vez con su suma de veri
   const r = await pool.query("SELECT name FROM schema_migrations ORDER BY name");
   assert.deepEqual(r.rows.map((x) => x.name), ["001_base.sql", "002_v03.sql"]);
 });
+
+// ---------- Resolución de la revisión de v03-base ----------
+
+test("borrados simultáneos de estados del mismo tipo no dejan el tipo vacío (EST-05, M1)", async () => {
+  const terminado = await statusByName("Terminado");
+  const a = (await newStatus("Cierre A", "post_obra")).data;
+  const meter = await statusByName("Esperando medidor");
+  const kindCount = async () => (await pool.query("SELECT count(*)::int AS n FROM statuses WHERE kind='post_obra'")).rows[0].n as number;
+  assert.equal(await kindCount(), 2);
+  const results = await Promise.all([
+    ctx.request(`/statuses/${a.id}`, "DELETE", { version: a.version, replacement_id: terminado.id }, ctx.admin),
+    ctx.request(`/statuses/${meter.id}`, "DELETE", { version: meter.version, replacement_id: terminado.id }, ctx.admin),
+  ]);
+  assert.deepEqual(results.map((r) => r.status).sort(), [200, 409]);
+  assert.equal(await kindCount(), 1);
+  // Si el que sobrevive es «Cierre A», la demo conserva su tipo: se deja como está para las pruebas siguientes.
+});
+
+test("borrar un estado: el reemplazo que desaparece da un mensaje claro y los archivados pasan sin validar (EST-05, B5, B8)", async () => {
+  const spare = (await newStatus("Espera archivada", "por_programar")).data;
+  const target = (await newStatus("Destino temporal", "por_programar")).data;
+  const kevin = await project("Kevin Almánzar");
+  await ctx.request(`/projects/${kevin.id}`, "PATCH", { version: kevin.version, status_id: spare.id }, ctx.office);
+  await ctx.request(`/projects/${kevin.id}/archive`, "POST", {}, ctx.office);
+  const programado = await statusByName("Programado");
+  const spareNow = await statusByName("Espera archivada");
+  // Un reemplazo que ya no existe: 422 con mensaje que lo dice
+  const gone = await ctx.request<{ message: string }>(`/statuses/${spare.id}`, "DELETE", { version: spareNow.version, replacement_id: "00000000-0000-4000-8000-000000000000" }, ctx.admin);
+  assert.equal(gone.status, 422);
+  assert.match(gone.data.message, /reemplazo ya no existe/);
+  // Archivado sin fechas: pasa a «Programado» sin que la validación lo bloquee
+  const ok = await ctx.request<StatusDeleted>(`/statuses/${spare.id}`, "DELETE", { version: spareNow.version, replacement_id: programado.id }, ctx.admin);
+  assert.equal(ok.status, 200);
+  assert.equal((await project("Kevin Almánzar")).status_id, programado.id);
+  await pool.query("UPDATE projects SET status_id=(SELECT id FROM statuses WHERE name='Por programar'), archived=false WHERE id=$1", [kevin.id]);
+  await ctx.request(`/statuses/${target.id}`, "DELETE", { version: target.version }, ctx.admin);
+});
+
+test("logotipo: immutable solo si ?v= coincide con el hash actual (EQP-07, B1)", async () => {
+  const c = await company("Electsun");
+  const up = await putLogo(c.id, PNG_1X1);
+  const base = up.data.logo_url!.split("?")[0];
+  const good = await getLogo(up.data.logo_url!, ctx.office);
+  assert.equal(good.headers.get("cache-control"), "private, max-age=31536000, immutable");
+  const stale = await getLogo(`${base}?v=000000000000`, ctx.office);
+  assert.equal(stale.status, 200);
+  assert.equal(stale.headers.get("cache-control"), "private, no-cache");
+  await ctx.request(`/companies/${c.id}/logo`, "DELETE", undefined, ctx.office);
+});
+
+test("archivar en bloque con versiones: una versión vencida cancela el lote (PRY-10, B7)", async () => {
+  const [a, b] = await Promise.all(["Kevin Almánzar", "Oficina Evolta"].map(project));
+  const stale = await ctx.request<{ message: string }>("/projects/archive-bulk", "POST", { ids: [a.id, b.id], archived: true, versions: { [a.id]: a.version, [b.id]: b.version + 5 } }, ctx.office);
+  assert.equal(stale.status, 409);
+  assert.equal((await projects("")).filter((p) => [a.id, b.id].includes(p.id)).length, 2); // nada se archivó
+  assert.equal((await ctx.request("/projects/archive-bulk", "POST", { ids: [a.id], archived: true, versions: { [a.id]: 0 } }, ctx.office)).status, 422);
+  const ok = await ctx.request<ArchiveBulkResult>("/projects/archive-bulk", "POST", { ids: [a.id, b.id], archived: true, versions: { [a.id]: a.version, [b.id]: b.version } }, ctx.office);
+  assert.equal(ok.status, 200);
+  assert.equal(ok.data.changed, 2);
+  await ctx.request("/projects/archive-bulk", "POST", { ids: [a.id, b.id], archived: false }, ctx.office);
+});
+
+test("catálogo de preparación: nombres y códigos que chocan con columnas del Excel se rechazan (XLS-07, M2)", async () => {
+  const body = { code: "ZZ", name: "Prueba", pending_label: "espera", applies_to: "todos", default_on: false };
+  for (const name of ["Parte", "estado", "Observación", "Fin real", "Planos"]) {
+    const r = await ctx.request<{ message: string }>("/prep-items", "POST", { ...body, name }, ctx.admin);
+    assert.equal(r.status, 422, name);
+    assert.match(r.data.message, /columna del Excel/);
+  }
+  assert.equal((await ctx.request("/prep-items", "POST", { ...body, code: "FIN" }, ctx.admin)).status, 422);
+  const pm = await prepByCode("PM");
+  assert.equal((await ctx.request("/prep-items", "POST", { ...body, code: "ZZ", name: "Ok sin choque" }, ctx.admin)).status, 201);
+  const renamed = await ctx.request(`/prep-items/${pm.id}`, "PATCH", { version: pm.version, name: "Tipo" }, ctx.admin);
+  assert.equal(renamed.status, 422);
+  const zz = await prepByCode("ZZ");
+  assert.equal((await ctx.request(`/prep-items/${zz.id}`, "PATCH", { version: zz.version, code: "dias" }, ctx.admin)).status, 422);
+  // Un parámetro puede conservar sus propias cabeceras antiguas (PL sigue llamándose «Planos y BOM»)
+  const pl = await prepByCode("PL");
+  assert.equal((await ctx.request(`/prep-items/${pl.id}`, "PATCH", { version: pl.version, name: "Planos" }, ctx.admin)).status, 200);
+  const plNow = await prepByCode("PL");
+  await ctx.request(`/prep-items/${plNow.id}`, "PATCH", { version: plNow.version, name: "Planos y BOM" }, ctx.admin);
+  await ctx.request(`/prep-items/${zz.id}`, "DELETE", { version: zz.version }, ctx.admin);
+});
+
+test("Excel: un parámetro heredado cuyo nombre choca con una columna fija se lee y se exporta por su código (XLS-07, M2)", async () => {
+  await pool.query("INSERT INTO prep_items(id,code,name,pending_label) VALUES(gen_random_uuid(),'PA','Parte','espera parte')");
+  try {
+    const pa = await prepByCode("PA");
+    const dry = await upload(await book(["Contratista", "Proyecto", "Parte", "PA"], [["Evolta", "Kevin Almánzar", "pieza A", "Sí"]]), "0");
+    assert.equal(dry.status, 200);
+    const kevin = await project("Kevin Almánzar");
+    assert.equal(kevin.part, "pieza A"); // «Parte» sigue siendo la columna fija
+    assert.deepEqual(kevin.prep.find((e) => e.item_id === pa.id), { item_id: pa.id, done: true }); // el parámetro, por su código
+    const exported = Buffer.from((await ctx.request("/projects/export", "GET", undefined, ctx.admin)).data as ArrayBuffer);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(exported as unknown as ExcelJS.Buffer);
+    const header = (wb.worksheets[0].getRow(1).values as unknown[]).slice(1).map(String);
+    assert.equal(header.filter((h) => h === "Parte").length, 1, "una sola columna «Parte»");
+    assert.ok(header.includes("PA"));
+    // Al volver a importar, ninguna fila falla por la cabecera repetida (otros avisos, como nombres duplicados de la demo, no cuentan)
+    const again = await upload(exported, "1");
+    assert.deepEqual(again.data.rows.filter((r) => r.action === "error" && /Parte|PA/.test(r.messages.join(" ")) && !/más de un proyecto/.test(r.messages.join(" "))), []);
+  } finally {
+    await pool.query("DELETE FROM prep_items WHERE code='PA'");
+  }
+});
+
+test("el timeline lleva el patrón de cada empresa, aunque dos compartan color (EQP-08)", async () => {
+  const view = await get<MuralView>("/view/mural");
+  const rows = view.model.timeline.groups.flatMap((g) => g.rows);
+  assert.ok(rows.length > 0);
+  const compusol = await company("Compusol");
+  const mine = (await projects("")).filter((p) => p.company_id === compusol.id).map((p) => p.id);
+  const hit = rows.filter((r) => mine.includes(r.id));
+  for (const r of rows) assert.ok(["solido", "rayas", "rayas_finas", "puntos", "cuadricula", "zigzag", "diagonal_cruzada"].includes(r.pattern));
+  for (const r of hit) assert.equal(r.pattern, "rayas");
+});

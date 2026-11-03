@@ -130,6 +130,8 @@ export type TimelineRow = {
   name: string;
   priority: boolean;
   dot: string;
+  /** Patrón del color de la empresa: dos empresas con el mismo color se distinguen por él. */
+  pattern: CompanyPattern;
   /** Lugar, más "parte 1" y kWp si están activos. */
   place: string;
   when: string;
@@ -491,7 +493,8 @@ export function muralModel(input: MuralInput, settings: MuralSettings, today: IS
       team: t?.code ?? "—",
       name: p.name,
       priority: settings.show_priority && p.priority,
-      dot: (company.get(p.company_id) ?? UNKNOWN_COMPANY).color,
+      dot: tint(p.company_id).color,
+      pattern: tint(p.company_id).pattern,
       place: parts.join(" · "),
       when,
       whenSub,

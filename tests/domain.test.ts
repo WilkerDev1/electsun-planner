@@ -183,7 +183,7 @@ test("validación del proyecto (VAL)", () => {
   assert.match(r.warnings.join(" "), /anterior a la fecha de venta/);
   assert.match(r.warnings.join(" "), /preparación pendiente: falta EDE/);
   const pause = { kind: "en_pausa" as const, name: "En pausa", requires_schedule: false, requires_reason: true };
-  assert.deepEqual(validateProject({ ...p, end_date: null }, pause, [], TODAY).errors, ["Falta el motivo de la pausa."]);
+  assert.deepEqual(validateProject({ ...p, end_date: null }, pause, [], TODAY, undefined, []).errors, ["Falta el motivo de la pausa."]);
   const obra = { kind: "en_obra" as const, name: "En obra", requires_schedule: true, requires_reason: false };
   const late = validateProject({ ...p, team_id: "t", end_date: "2026-10-26", prep: prep(["pl", true], ["ma", true], ["ede", true]) }, obra, [], TODAY, undefined, CAT);
   assert.deepEqual(late.errors, []);
@@ -246,13 +246,13 @@ test("en obra sin fin ni días no se guarda (VAL-01)", () => {
     team_id: "t", pause_reason: "", system_type: "hibrido" as const, prep: prep(["pl", true], ["ma", true]),
   };
   const obra = { kind: "en_obra" as const, name: "En obra", requires_schedule: true, requires_reason: false };
-  assert.deepEqual(validateProject(p, obra, [], TODAY).errors, ["Para estar En obra necesita fecha de fin o días estimados."]);
-  assert.deepEqual(validateProject({ ...p, estimated_days: 5 }, obra, [], TODAY).errors, []);
-  assert.deepEqual(validateProject({ ...p, end_date: "2026-10-30" }, obra, [], TODAY).errors, []);
+  assert.deepEqual(validateProject(p, obra, [], TODAY, undefined, []).errors, ["Para estar En obra necesita fecha de fin o días estimados."]);
+  assert.deepEqual(validateProject({ ...p, estimated_days: 5 }, obra, [], TODAY, undefined, []).errors, []);
+  assert.deepEqual(validateProject({ ...p, end_date: "2026-10-30" }, obra, [], TODAY, undefined, []).errors, []);
   // Sin inicio o sin equipo sigue mandando el mensaje de siempre.
-  assert.match(validateProject({ ...p, team_id: null }, obra, [], TODAY).errors[0], /fecha de inicio y equipo/);
+  assert.match(validateProject({ ...p, team_id: null }, obra, [], TODAY, undefined, []).errors[0], /fecha de inicio y equipo/);
   const porProgramar = { kind: "por_programar" as const, name: "Por programar", requires_schedule: false, requires_reason: false };
-  assert.deepEqual(validateProject(p, porProgramar, [], TODAY).errors, []);
+  assert.deepEqual(validateProject(p, porProgramar, [], TODAY, undefined, []).errors, []);
 });
 
 test("los avisos llevan código y coinciden con su texto (VAL-06, CAL-06)", () => {
