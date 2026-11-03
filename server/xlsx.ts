@@ -262,9 +262,12 @@ export async function importProjects(
     }
     let prev: Project | undefined;
     if (!errors.length) {
-      const matches = (byKey.get(`${companyId}|${fold(name)}`) ?? []).filter(
+      const all = (byKey.get(`${companyId}|${fold(name)}`) ?? []).filter(
         (p) => part === undefined || fold(p.part) === fold(part),
       );
+      // La ambigüedad se mide con los activos; un archivado solo cuenta si no hay activo con ese nombre.
+      const active = all.filter((p) => !p.archived);
+      const matches = active.length ? active : all;
       if (matches.length > 1) fail("Hay más de un proyecto con ese nombre en la empresa. Agrega la columna «Parte» para distinguirlos.");
       else if (matches[0]?.archived) fail("Ese proyecto está archivado. Desarchívalo en la tabla antes de importarlo.");
       else prev = matches[0];

@@ -43,7 +43,8 @@ El **rol de acceso** (qué puede hacer una cuenta) es independiente del **nivel 
 | Recurso | admin | office | móvil | TV |
 |---|---|---|---|---|
 | `GET /api/projects`, `statuses`, `employees`, `teams`, `companies`, `notices` | ✔ | ✔ | — | — |
-| Escribir proyectos (salvo `priority`), catálogos, avisos | ✔ | ✔ | — | — |
+| Escribir proyectos (salvo `priority`), empleados, equipos, empresas, avisos | ✔ | ✔ | — | — |
+| Escribir la lista de estados (EST-04) | ✔ | — | — | — |
 | `PATCH` de `priority` en un proyecto | ✔ | — | — | — |
 | Importar y exportar Excel | ✔ | ✔ | — | — |
 | `accounts/*`, `access-links/*`, `PUT mural/settings` | ✔ | — | — | — |
@@ -52,7 +53,7 @@ El **rol de acceso** (qué puede hacer una cuenta) es independiente del **nivel 
 | `GET /api/view/movil` | — | — | ✔ (cookie móvil) | — |
 | `GET /api/events` (SSE) | ✔ | ✔ | ✔ | ✔ |
 
-**ROL-03 [M]** Si una cuenta `office` envía `priority` en un `PATCH`, el servidor responde 403 sin aplicar ningún cambio del cuerpo.
+**ROL-03 [M]** Si una cuenta `office` envía `priority` al crear (`POST`) o editar (`PATCH`), el servidor responde 403 sin aplicar ningún cambio del cuerpo.
 
 ---
 
@@ -242,7 +243,7 @@ Referencia: `V4MuralPrincipal.dc.html` (diseño principal) y `V4Mural.dc.html` (
 - **Por programar**: `por_programar` + `en_pausa`.
 - **Terminados del mes**: `actual_end` en el mes actual.
 
-**MUR-03 [M]** Diseño principal, columna izquierda "Proyectos activos": `en_obra` primero (barra "Día X de N" o "Atrasada · +N días" en ámbar), luego `programado` ("Inicia en N días", "Mañana", "Hoy"). Orden según la configuración: por fecha, o con prioridad primero. Bandera de prioridad si está activa.
+**MUR-03 [M]** Diseño principal, columna izquierda "Proyectos activos": `en_obra` primero (barra "Día X de N" o "Atrasada · +N días" en ámbar), luego `programado` ("Inicia hoy", "Inicia mañana", "Inicia en N días", en días naturales). Orden según la configuración: por fecha, o con prioridad primero. Bandera de prioridad si está activa.
 
 **MUR-04 [M]** Diseño principal, columna derecha: "Calendario por equipo" con N semanas (2, 3 o 4) de lunes a sábado, una fila por equipo activo, línea de "hoy" naranja `#C2410C`, barras con la regla de etiqueta de CAL-03 y el exceso de atraso como tramo ámbar discontinuo.
 

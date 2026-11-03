@@ -498,3 +498,16 @@ test("estados: solo el administrador crea y edita, y no se borran (EST-01, EST-0
     "En obra", "Programado", "Por programar", "En pausa", "Terminado", "Esperando medidor",
   ]);
 });
+
+test("importar: un proyecto archivado no se duplica ni bloquea al activo del mismo nombre (XLS-02)", async () => {
+  const row = [["Evolta", "Oficina Evolta", 6.5, null, "Santo Domingo", null, null, null, null, "Por programar", "Revisar techo"]];
+  const p = await byName("Oficina Evolta");
+  assert.equal((await ctx.request(`/projects/${p.id}/archive`, "POST", { version: p.version }, ctx.office)).status, 200);
+  const archived = await upload(await workbook(row), "1");
+  assert.equal(archived.data.rows[0].action, "error");
+  assert.match(archived.data.rows[0].messages.join(" "), /archivado/);
+  const again = await ctx.request<Project>("/projects", "POST", { company_id: companies["Evolta"], name: "Oficina Evolta" }, ctx.office);
+  assert.equal(again.status, 201);
+  const active = await upload(await workbook(row), "1");
+  assert.equal(active.data.rows[0].action, "update");
+});
