@@ -577,3 +577,16 @@ test("importar: no asigna un equipo desactivado (EQP-06, VAL)", async () => {
   assert.match(r.data.rows[0].messages.join(" "), /desactivado/);
   await pool.query("DELETE FROM teams WHERE code='E9'");
 });
+
+test("crear un proyecto con equipo devuelve 201 (la comprobación de equipo no recibe un id vacío)", async () => {
+  // Bug corregido: al crear, el id se pasaba vacío a validateAgainstDb y PostgreSQL lo rechazaba como uuid (500).
+  const r = await ctx.request<Project>(
+    "/projects",
+    "POST",
+    { company_id: companies["Electsun"], name: "Con equipo", team_id: teams["E1"] },
+    ctx.office,
+  );
+  assert.equal(r.status, 201, JSON.stringify(r.data));
+  assert.equal(r.data.team_id, teams["E1"]);
+  await ctx.request(`/projects/${r.data.id}/archive`, "POST", { version: r.data.version }, ctx.office);
+});
