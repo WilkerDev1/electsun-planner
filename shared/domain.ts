@@ -138,6 +138,19 @@ export function joinEs(items: string[]): string {
   return `${items.slice(0, -1).join(", ")} y ${items[items.length - 1]}`;
 }
 
+/** Iniciales de un nombre: las dos primeras palabras, sin "Sr.". */
+export const initials = (name: string) =>
+  name.replace(/^Sr\.\s*/, "").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+
+/** Fondo claro y texto oscuro del mismo tono para el monograma de una empresa (MUR-13). Una sola fórmula para todas las vistas. */
+export function monogramColors(hex: string | null | undefined): { bg: string; fg: string } {
+  if (!hex || !/^#[0-9a-f]{6}$/i.test(hex)) return { bg: "#F2F4F7", fg: "#475467" };
+  const rgb = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  const mix = (to: number, t: number) =>
+    "#" + rgb.map((v) => Math.round(v + (to - v) * t).toString(16).padStart(2, "0")).join("").toUpperCase();
+  return { bg: mix(255, 0.87), fg: mix(0, 0.42) };
+}
+
 export const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 // ---------- Progreso y atraso ----------
@@ -153,8 +166,22 @@ export function dayOf(start: ISODate, end: ISODate | null, today: ISODate) {
 export function startsIn(start: ISODate, today: ISODate) {
   const days = diffDays(today, start);
   const text =
-    days <= 0 ? "Inicia hoy" : days === 1 ? "Inicia mañana" : `Inicia en ${days} días`;
+    days < 0
+      ? `Debía iniciar el ${dayLabel(start)}`
+      : days === 0
+        ? "Inicia hoy"
+        : days === 1
+          ? "Inicia mañana"
+          : `Inicia en ${days} días`;
   return { days, text };
+}
+
+/**
+ * Fin que usan todas las vistas (VAL-01): el fin previsto o, en datos antiguos sin fin, el día de inicio.
+ * Un fin anterior al inicio no es válido y también cuenta como el inicio.
+ */
+export function effectiveEnd(p: { start_date: ISODate; end_date: ISODate | null }): ISODate {
+  return p.end_date && p.end_date >= p.start_date ? p.end_date : p.start_date;
 }
 
 /** Días laborables de atraso: obra "en_obra" cuyo fin previsto ya pasó (CAL-06). */
@@ -291,10 +318,28 @@ export type ValidatableProject = Prep & {
   end_date: ISODate | null;
   team_id: string | null;
   pause_reason: string;
+  /** Días laborables estimados; con inicio, bastan para calcular el fin (VAL-01). */
+  estimated_days?: number | null;
   archived?: boolean;
 };
 
-export type Validation = { errors: string[]; warnings: string[] };
+export type WarningCode = "inicio_antes_venta" | "choque_equipo" | "prep_pendiente" | "atrasada";
+export type CodedWarning = { code: WarningCode; text: string };
+
+/** `warnings` conserva solo los textos; `coded` lleva los mismos avisos, en el mismo orden, con su código. */
+export type Validation = { errors: string[]; warnings: string[]; coded: CodedWarning[] };
+
+/**
+ * Código de un aviso a partir de su texto, para quien solo recibe `warnings: string[]` (respuesta del PATCH).
+ * Vive junto a `validateProject` y sus pruebas comprueban que cubre cada aviso que ese genera.
+ */
+export function warningCodeOf(text: string): WarningCode | undefined {
+  if (text.startsWith("El inicio es anterior a la fecha de venta")) return "inicio_antes_venta";
+  if (/ ya está en .+ esos días\.$/.test(text)) return "choque_equipo";
+  if (/ con preparación pendiente: falta /.test(text)) return "prep_pendiente";
+  if (text.startsWith("Atrasada · +")) return "atrasada";
+  return undefined;
+}
 
 /** Errores bloquean el guardado; avisos no (VAL-10). */
 export function validateProject(
@@ -305,23 +350,26 @@ export function validateProject(
   teamCode?: (id: string) => string,
 ): Validation {
   const errors: string[] = [];
-  const warnings: string[] = [];
+  const coded: CodedWarning[] = [];
+  const warn = (code: WarningCode, text: string) => coded.push({ code, text });
   if (status.requires_schedule && (!p.start_date || !p.team_id))
     errors.push(`Para estar ${status.name} necesita fecha de inicio y equipo.`);
+  else if (status.requires_schedule && !p.end_date && !p.estimated_days)
+    errors.push(`Para estar ${status.name} necesita fecha de fin o días estimados.`);
   if (status.requires_reason && !p.pause_reason.trim()) errors.push("Falta el motivo de la pausa.");
   if (p.start_date && p.end_date && p.end_date < p.start_date)
     errors.push("La fecha de fin es anterior al inicio.");
   if (p.start_date && p.sale_date && p.start_date < p.sale_date)
-    warnings.push("El inicio es anterior a la fecha de venta. Revisa las fechas.");
+    warn("inicio_antes_venta", "El inicio es anterior a la fecha de venta. Revisa las fechas.");
   const clash = teamClash({ ...p, kind: status.kind }, others);
   if (clash)
-    warnings.push(`${teamCode?.(p.team_id!) ?? "El equipo"} ya está en ${clash.name} esos días.`);
+    warn("choque_equipo", `${teamCode?.(p.team_id!) ?? "El equipo"} ya está en ${clash.name} esos días.`);
   const miss = missingPrep(p);
   if (BUSY_KINDS.includes(status.kind) && miss.length)
-    warnings.push(`${status.name} con preparación pendiente: falta ${joinEs(miss)}.`);
+    warn("prep_pendiente", `${status.name} con preparación pendiente: falta ${joinEs(miss)}.`);
   const late = lateDays(status.kind, p.end_date, today);
-  if (late) warnings.push(`${lateText(late)}: debía terminar el ${dayLabel(p.end_date!)}.`);
-  return { errors, warnings };
+  if (late) warn("atrasada", `${lateText(late)}: debía terminar el ${dayLabel(p.end_date!)}.`);
+  return { errors, warnings: coded.map((w) => w.text), coded };
 }
 
 /** Texto plano sin tildes y en minúsculas, para buscar y comparar cabeceras de Excel. */

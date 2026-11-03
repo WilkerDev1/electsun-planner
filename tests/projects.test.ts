@@ -529,3 +529,35 @@ test("importar: rechaza hojas con demasiadas filas y zips que se expanden demasi
   assert.equal(r.status, 422);
   assert.match(r.data.message ?? "", /demasiado grande/);
 });
+
+test("En obra exige fin o días estimados además de inicio y equipo (VAL-01)", async () => {
+  const sin = await patch("Paola Núñez", { status_id: statuses["En obra"].id, start_date: "2026-10-30", team_id: teams["E3"] });
+  assert.equal(sin.status, 422);
+  assert.match(sin.data.message, /fecha de fin o días estimados/);
+  const con = await patch("Paola Núñez", { status_id: statuses["En obra"].id, start_date: "2026-10-30", team_id: teams["E3"], estimated_days: 3 });
+  assert.equal(con.status, 200);
+  assert.equal(con.data.end_date, "2026-11-02");
+});
+
+test("un equipo desactivado no recibe obras, salvo que ya fuera el del proyecto (EQP-06)", async () => {
+  const created = await ctx.request<{ id: string; version: number }>("/teams", "POST", { code: "E8", name: "Equipo 8" }, ctx.office);
+  assert.equal(created.status, 201);
+  const off = await ctx.request(`/teams/${created.data.id}`, "PATCH", { version: created.data.version, active: false }, ctx.office);
+  assert.equal(off.status, 200);
+
+  const events = currentVersion();
+  const post = await ctx.request("/projects", "POST", { company_id: companies["Electsun"], name: "Obra en equipo apagado", team_id: created.data.id }, ctx.office);
+  assert.equal(post.status, 422);
+  assert.match((post.data as { message: string }).message, /desactivado/);
+  const moved = await patch("Kevin Almánzar", { team_id: created.data.id });
+  assert.equal(moved.status, 422);
+  assert.match(moved.data.message, /desactivado/);
+  assert.equal(currentVersion(), events);
+
+  // El equipo que el proyecto ya tenía se conserva al editar otros campos.
+  await pool.query("UPDATE projects SET team_id=$1 WHERE name='Kevin Almánzar'", [created.data.id]);
+  const keep = await patch("Kevin Almánzar", { notes: "sigue en su equipo" });
+  assert.equal(keep.status, 200);
+  assert.equal(keep.data.team_id, created.data.id);
+  await pool.query("UPDATE projects SET team_id=NULL WHERE name='Kevin Almánzar'");
+});

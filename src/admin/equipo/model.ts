@@ -3,6 +3,7 @@ import {
   countWorkdays,
   lateDays,
   lateText,
+  monogramColors,
   plural,
   shortDate,
   weekdayShort,
@@ -53,12 +54,8 @@ export const STATE_STYLE: Record<EmployeeState, { fg: string; bg: string; presen
   "De baja": { fg: "#475467", bg: "#F2F4F7", presence: "#98A2B3" },
 };
 
-const mix = (hex: string, target: number, amount: number) => {
-  const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-  return "#" + c.map((v) => Math.round(v + (target - v) * amount).toString(16).padStart(2, "0")).join("");
-};
-/** Fondo y texto del monograma a partir del color de la empresa (como las parejas de V4EquipoTablas). */
-export const monogram = (color: string) => ({ bg: mix(color, 255, 0.86), fg: mix(color, 0, 0.4) });
+/** Fondo y texto del monograma a partir del color de la empresa: la fórmula única de shared/domain.ts. */
+export const monogram = monogramColors;
 
 // ---------- Obra de cada equipo (EQP-03, CAL-02) ----------
 

@@ -16,6 +16,8 @@ import {
   placeBar,
   shortDate,
   startsIn,
+  initials,
+  effectiveEnd,
   waitReason,
   missingPrep,
   weekdayShort,
@@ -95,16 +97,6 @@ const MAX_SEGMENTS = 130;
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const dayNumber = (iso: ISODate) => Number(iso.slice(8, 10));
-const initialsOf = (name: string) =>
-  name
-    .replace(/^Sr\.\s*/, "")
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase();
-
 /** "Jue 29 oct", "19 – 30 oct" o "30 oct – 2 nov". */
 function datesText(start: ISODate, end: ISODate): string {
   if (start === end) return cap(dayLabel(start));
@@ -142,7 +134,7 @@ export function mobileModel(input: MobileInput, employeeId: string, today: ISODa
   const person = (e: MobileEmployee, leadId: string | null, callable: boolean): MovilPerson => ({
     id: e.id,
     name: e.name,
-    initials: initialsOf(e.name),
+    initials: initials(e.name),
     level: e.level,
     state: e.state,
     is_lead: e.id === leadId,
@@ -176,7 +168,7 @@ export function mobileModel(input: MobileInput, employeeId: string, today: ISODa
 
   function job(p: (typeof live)[number]): MovilJob {
     const start = p.start_date;
-    const end = p.end_date && p.end_date >= start ? p.end_date : start;
+    const end = effectiveEnd({ start_date: start, end_date: p.end_date });
     const total = countWorkdays(start, end);
     const late = lateDays(p.status_kind, end, today);
     const started = p.status_kind === "en_obra" && start <= today;
@@ -340,15 +332,17 @@ export function mobileModel(input: MobileInput, employeeId: string, today: ISODa
       const bars: TimelineBar[] = [];
       for (const j of allJobs.filter((x) => x.team_code === t.code).sort(byStart)) {
         const bar = placeBar(j.start_date, j.end_date, from, WEEKS_TIMELINE);
-        if (!bar.visible) continue;
+        // El tramo de atraso se calcula antes de descartar: la obra puede haber terminado fuera de la ventana y seguir atrasada.
         const over = j.late_days ? overrunBar(j.end_date, today, from, WEEKS_TIMELINE) : null;
+        if (!bar.visible && !over) continue;
         bars.push({
           id: j.id,
           name: j.name,
           kind: j.kind,
           dates_text: j.dates_text,
-          col: bar.col,
-          span: bar.span,
+          // Barra planificada fuera de la ventana: ancho 0, pegada al tramo de atraso.
+          col: bar.visible ? bar.col : over!.col,
+          span: bar.visible ? bar.span : 0,
           clip_start: bar.clipStart,
           clip_end: bar.clipEnd,
           done_cols: j.kind === "en_obra" ? Math.min(bar.span, Math.max(0, todayCol - bar.col + 1)) : 0,
@@ -365,7 +359,7 @@ export function mobileModel(input: MobileInput, employeeId: string, today: ISODa
       id: me.id,
       name: me.name,
       first_name: me.name.split(" ")[0],
-      initials: initialsOf(me.name),
+      initials: initials(me.name),
       level: me.level,
       team_id: me.team_id,
       team_code: myTeam?.code ?? null,

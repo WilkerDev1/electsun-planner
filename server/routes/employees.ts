@@ -5,26 +5,10 @@ import { transaction, httpError } from "../db.js";
 import { authenticated } from "../auth.js";
 import { audit, diffOf } from "../audit.js";
 import { publishChange } from "../events.js";
-import { EmployeeCreate, type Employee } from "../../shared/contracts/equipo.js";
-import { version as versionField } from "../../shared/contracts/common.js";
+import { EmployeeCreate, EmployeePatch, type Employee } from "../../shared/contracts/equipo.js";
 
 // F1·C — Escrituras de empleados (EQP-01, EQP-02, EQP-04, ACC-06)
 export const employees = Router();
-
-/**
- * Cuerpo del PATCH. El contrato compartido usa `.partial()` sobre campos con valor por defecto, y zod
- * rellenaría `job`, `state` y `phone` aunque no vengan; aquí solo cuenta lo que se envía.
- */
-const shape = EmployeeCreate.shape;
-const Patch = z.object({
-  name: shape.name.optional(),
-  job: shape.job.removeDefault().optional(),
-  level: shape.level.optional(),
-  team_id: shape.team_id,
-  state: shape.state.removeDefault().optional(),
-  phone: shape.phone.removeDefault().optional(),
-  version: versionField,
-});
 
 const FIELDS = ["name", "job", "level", "team_id", "state", "phone"] as const;
 
@@ -65,7 +49,7 @@ employees.post("/", authenticated, async (req, res) => {
 employees.patch("/:id", authenticated, async (req, res) => {
   const id = z.uuid().safeParse(req.params.id);
   if (!id.success) throw httpError(404, "Ese empleado no existe.");
-  const { version, ...changes } = Patch.parse(req.body);
+  const { version, ...changes } = EmployeePatch.parse(req.body);
   const updated = await transaction(async (c) => {
     const before = await getEmployee(c, id.data, true);
     if (!before) throw httpError(404, "Ese empleado no existe.");

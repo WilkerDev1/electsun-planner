@@ -255,6 +255,38 @@ test("el modelo ignora proyectos archivados y fuera de su estado", () => {
   assert.throws(() => mobileModel(input, crypto.randomUUID(), TODAY), /no existe/);
 });
 
+test("obra atrasada cuya barra quedó fuera de la ventana sigue en la línea de tiempo (CAL-06, MOV-04)", () => {
+  // Debía terminar el vie 16 oct (antes de la ventana, que empieza el lun 19) y hoy es mar 27.
+  const old = { ...input, projects: input.projects.map((p) => (p.name === "Granja Los Pinos" ? { ...p, start_date: "2026-10-12", end_date: "2026-10-16" } : p)) };
+  const v = mobileModel(old, input.employees.find((e) => e.name === "Starlin Reyes")!.id, TODAY);
+  const lane = v.calendario.timeline.lanes.find((l) => l.team_code === "E3")!;
+  const bar = lane.bars.find((b) => b.name === "Granja Los Pinos")!;
+  assert.ok(bar, "la obra atrasada no desaparece");
+  assert.equal(bar.span, 0);
+  assert.equal(bar.done_cols, 0);
+  assert.ok(bar.overrun);
+  assert.equal(bar.col, bar.overrun!.col);
+  assert.equal(bar.overrun!.col + bar.overrun!.span - 1, v.calendario.timeline.today_col);
+  // La agenda y las obras la siguen listando.
+  assert.ok(v.obras.en_obra.some((j) => j.name === "Granja Los Pinos"));
+});
+
+test("obra en curso sin fecha de fin: se trata como de un solo día (VAL-01)", () => {
+  const legacy = { ...input, projects: input.projects.map((p) => (p.name === "Granja Los Pinos" ? { ...p, start_date: "2026-10-20", end_date: null } : p)) };
+  const v = mobileModel(legacy, input.employees.find((e) => e.name === "Starlin Reyes")!.id, TODAY);
+  const cur = v.hoy.current!;
+  assert.equal(cur.end_date, "2026-10-20");
+  assert.equal(cur.days_total, 1);
+  assert.ok(cur.late_days > 0);
+});
+
+test("programado con inicio pasado: «Debía iniciar el …» (CAL-06)", () => {
+  const past = { ...input, projects: input.projects.map((p) => (p.name === "Carla Méndez" ? { ...p, start_date: "2026-10-20", end_date: "2026-10-21" } : p)) };
+  const v = mobileModel(past, input.employees.find((e) => e.name === "Starlin Reyes")!.id, TODAY);
+  const job = Object.values(v.detail).find((j) => j.name === "Carla Méndez")!;
+  assert.match(job.when_text, /^Debía iniciar el /);
+});
+
 // ---------- Integración: GET /api/view/movil (ROL-02, ACC-04, ACC-06) ----------
 
 const employeeId = async (name: string) =>

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useOutletContext } from "react-router-dom";
 import type { MovilCompany, MovilPerson, MovilView, SegmentState } from "../../shared/contracts/movil";
+import { monogramColors } from "../../shared/domain";
 
 // Piezas compartidas de las pantallas móviles (design/v4/V4Movil). Pensadas para leerse a pleno sol:
 // nada de texto por debajo de 13 px y los controles táctiles miden al menos 44 px (MOV-06).
@@ -14,13 +15,6 @@ export const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${Str
 export type FromTab = "Hoy" | "Obras" | "Calendario";
 export const jobLink = (id: string) => `/m/obra/${id}`;
 export const fromState = (from: FromTab) => ({ from });
-
-const mix = (hex: string, target: number, amount: number) => {
-  const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-  return "#" + c.map((v) => Math.round(v + (target - v) * amount).toString(16).padStart(2, "0")).join("");
-};
-/** Colores del monograma de una empresa: fondo muy claro y letras oscuras del mismo tono (MUR-13). */
-export const tones = (color: string) => (/^#[0-9A-Fa-f]{6}$/.test(color) ? { bg: mix(color, 255, 0.86), fg: mix(color, 0, 0.5) } : { bg: "#F2F4F7", fg: "#344054" });
 
 export function Icon({ d, size = 20, width = 2, className }: { d: string; size?: number; width?: number; className?: string }) {
   return (
@@ -61,7 +55,7 @@ export function Sun({ size = 40 }: { size?: number }) {
 
 /** Monograma de empresa (2 letras sobre su color suave). */
 export function CompanyMono({ company, size = 40, round = true }: { company: MovilCompany; size?: number; round?: boolean }) {
-  const t = tones(company.color);
+  const t = monogramColors(company.color);
   return (
     <span
       role="img"

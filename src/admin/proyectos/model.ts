@@ -4,9 +4,11 @@ import type { Company, Employee, Team } from "../../../shared/contracts/equipo";
 import {
   dayLabel,
   fold,
+  monogramColors,
   rangeLabel,
   validateProject,
   type Schedulable,
+  warningCodeOf,
 } from "../../../shared/domain";
 
 // Modelo de presentación de la pantalla Proyectos. Los cálculos viven en shared/domain.ts.
@@ -37,17 +39,8 @@ export type EditPatch = Partial<
   >
 >;
 
-/** Fondo y texto del monograma de empresa, derivados de su color (aclarado y oscurecido). */
-export function monoColors(hex: string | undefined): { bg: string; fg: string } {
-  if (!hex || !/^#[0-9a-f]{6}$/i.test(hex)) return { bg: "#F2F4F7", fg: "#475467" };
-  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-  const mix = (v: number, to: number, t: number) => Math.round(v + (to - v) * t);
-  const toHex = (c: number[]) => "#" + c.map((x) => x.toString(16).padStart(2, "0")).join("");
-  return {
-    bg: toHex([r, g, b].map((v) => mix(v, 255, 0.88))),
-    fg: toHex([r, g, b].map((v) => mix(v, 0, 0.42))),
-  };
-}
+/** Fondo y texto del monograma de empresa: la fórmula única de shared/domain.ts. */
+export const monoColors = monogramColors;
 
 /** Avisos de cada fila con las mismas reglas del servidor (VAL). Los errores heredados también se muestran. */
 export function computeWarnings(rows: Project[], lk: Lookup, today: string): Map<string, string[]> {
@@ -69,8 +62,8 @@ export function computeWarnings(rows: Project[], lk: Lookup, today: string): Map
   return out;
 }
 
-export const isClashWarning = (w: string) => / ya está en .+ esos días\.$/.test(w);
-export const isLateWarning = (w: string) => w.startsWith("Atrasada");
+export const isClashWarning = (w: string) => warningCodeOf(w) === "choque_equipo";
+export const isLateWarning = (w: string) => warningCodeOf(w) === "atrasada";
 
 export function filterRows(rows: Project[], statusId: string, query: string, lk: Lookup): Project[] {
   const q = fold(query);

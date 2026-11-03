@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import type { PoolClient } from "pg";
-import type { Db } from "./db.js";
+import { httpError, type Db } from "./db.js";
 import { audit, diffOf } from "./audit.js";
 import { PROJECT_COLUMNS, listProjects } from "./queries.js";
 import type { Project } from "../shared/contracts/projects.js";
@@ -85,7 +85,7 @@ export function changedFields(before: ProjectFields, next: ProjectFields): Parti
 type Validatable = Pick<
   Project,
   | "id" | "name" | "sale_date" | "start_date" | "end_date" | "team_id" | "pause_reason" | "archived"
-  | "system_type" | "prep_plans" | "prep_materials" | "prep_ede"
+  | "estimated_days" | "system_type" | "prep_plans" | "prep_materials" | "prep_ede"
 >;
 
 /** Reglas VAL contra los demás proyectos del mismo equipo en la base. */
@@ -103,4 +103,14 @@ export async function validateAgainstDb(db: Db, p: Validatable, status: Status, 
     teamCode = (await db.query("SELECT code FROM teams WHERE id=$1", [p.team_id])).rows[0]?.code;
   }
   return validateProject(p, status, others, today, () => teamCode ?? "El equipo");
+}
+
+/**
+ * Un equipo inactivo no puede recibir obras: no sale en el calendario y la obra desaparecería de la vista.
+ * Se permite si es el equipo que el proyecto ya tenía (`currentTeamId`).
+ */
+export async function assertTeamAssignable(db: Pick<Db, "query">, teamId: string | null, currentTeamId: string | null = null): Promise<void> {
+  if (!teamId || teamId === currentTeamId) return;
+  const r = await db.query("SELECT active FROM teams WHERE id=$1", [teamId]);
+  if (r.rows[0] && !r.rows[0].active) throw httpError(422, "Ese equipo está desactivado. Elige otro equipo.");
 }

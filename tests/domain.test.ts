@@ -2,6 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   addWorkdays,
+  effectiveEnd,
+  initials,
+  monogramColors,
+  warningCodeOf,
   countWorkdays,
   dayOf,
   lateDays,
@@ -63,6 +67,29 @@ test("inicio en días naturales", () => {
   assert.equal(startsIn("2026-10-28", TODAY).text, "Inicia mañana");
   assert.equal(startsIn("2026-10-29", TODAY).text, "Inicia en 2 días");
   assert.equal(startsIn(TODAY, TODAY).text, "Inicia hoy");
+});
+
+test("inicio ya pasado: «Debía iniciar» en vez de «Inicia hoy» (CAL-06)", () => {
+  assert.deepEqual(startsIn("2026-10-20", TODAY), { days: -7, text: "Debía iniciar el mar 20 oct" });
+  assert.equal(startsIn("2026-10-26", TODAY).text, "Debía iniciar el lun 26 oct");
+});
+
+test("fin efectivo para datos antiguos sin fin (VAL-01)", () => {
+  assert.equal(effectiveEnd({ start_date: "2026-10-20", end_date: null }), "2026-10-20");
+  assert.equal(effectiveEnd({ start_date: "2026-10-20", end_date: "2026-10-30" }), "2026-10-30");
+  assert.equal(effectiveEnd({ start_date: "2026-10-20", end_date: "2026-10-10" }), "2026-10-20");
+});
+
+test("monograma e iniciales: una sola fórmula (MUR-13)", () => {
+  assert.deepEqual(monogramColors("#EA6A1F"), monogramColors("#ea6a1f"));
+  const m = monogramColors("#0F766E");
+  assert.match(m.bg, /^#[0-9A-F]{6}$/);
+  assert.match(m.fg, /^#[0-9A-F]{6}$/);
+  assert.notEqual(m.bg, m.fg);
+  assert.deepEqual(monogramColors("rojo"), { bg: "#F2F4F7", fg: "#475467" });
+  assert.deepEqual(monogramColors(undefined), monogramColors(null));
+  assert.equal(initials("Sr. Herrera"), "H");
+  assert.equal(initials("Lucía Esther Gómez"), "LE");
 });
 
 test("fin previsto con días estimados (CAL-05)", () => {
@@ -179,4 +206,33 @@ test("mergeProject normaliza como el servidor (VAL-09, PRY-01)", () => {
   assert.equal(mergeProject(done, { status_id: "a" }, "en_obra", TODAY).actual_end, null);
   assert.equal(mergeProject(prev, { show_on_mural: true }, "en_obra", TODAY).mural_until, "2026-11-03");
   assert.equal(mergeProject({ ...prev, mural_until: "2026-10-20" }, { show_on_mural: true }, "en_obra", TODAY).mural_until, "2026-11-03");
+});
+
+test("en obra sin fin ni días no se guarda (VAL-01)", () => {
+  const p = {
+    id: "x", name: "X", sale_date: null, start_date: "2026-10-20", end_date: null, estimated_days: null as number | null,
+    team_id: "t", pause_reason: "", system_type: "hibrido" as const, prep_plans: true, prep_materials: true, prep_ede: false,
+  };
+  const obra = { kind: "en_obra" as const, name: "En obra", requires_schedule: true, requires_reason: false };
+  assert.deepEqual(validateProject(p, obra, [], TODAY).errors, ["Para estar En obra necesita fecha de fin o días estimados."]);
+  assert.deepEqual(validateProject({ ...p, estimated_days: 5 }, obra, [], TODAY).errors, []);
+  assert.deepEqual(validateProject({ ...p, end_date: "2026-10-30" }, obra, [], TODAY).errors, []);
+  // Sin inicio o sin equipo sigue mandando el mensaje de siempre.
+  assert.match(validateProject({ ...p, team_id: null }, obra, [], TODAY).errors[0], /fecha de inicio y equipo/);
+  const porProgramar = { kind: "por_programar" as const, name: "Por programar", requires_schedule: false, requires_reason: false };
+  assert.deepEqual(validateProject(p, porProgramar, [], TODAY).errors, []);
+});
+
+test("los avisos llevan código y coinciden con su texto (VAL-06, CAL-06)", () => {
+  const p = {
+    id: "x", name: "X", sale_date: "2026-10-25", start_date: "2026-10-20", end_date: "2026-10-26", estimated_days: 6,
+    team_id: "t", pause_reason: "", system_type: "neta" as const, prep_plans: true, prep_materials: true, prep_ede: false,
+  };
+  const obra = { kind: "en_obra" as const, name: "En obra", requires_schedule: true, requires_reason: false };
+  const other: Schedulable = { id: "o", name: "Otra", team_id: "t", start_date: "2026-10-22", end_date: "2026-10-23", kind: "en_obra" };
+  const v = validateProject(p, obra, [other], TODAY, () => "E1");
+  assert.deepEqual(v.coded.map((w) => w.code).sort(), ["atrasada", "choque_equipo", "inicio_antes_venta", "prep_pendiente"]);
+  assert.deepEqual(v.warnings, v.coded.map((w) => w.text));
+  for (const w of v.coded) assert.equal(warningCodeOf(w.text), w.code);
+  assert.equal(warningCodeOf("Otra cosa"), undefined);
 });

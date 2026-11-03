@@ -8,7 +8,7 @@ import { listProjects, listStatuses } from "../queries.js";
 import { serverToday } from "../today.js";
 import { exportProjects, importProjects } from "../xlsx.js";
 import {
-  blankProject, changedFields, fieldsOf, insertProject, lockProject, saveProject, validateAgainstDb,
+  blankProject, changedFields, fieldsOf, insertProject, assertTeamAssignable, lockProject, saveProject, validateAgainstDb,
   type ProjectFields,
 } from "../project-store.js";
 import { ProjectCreate, ProjectPatch, type HistoryEntry } from "../../shared/contracts/projects.js";
@@ -115,6 +115,7 @@ projects.post("/", authenticated, async (req, res) => {
     const merged = mergeProject(base, toFields(rest), status.kind, today);
     if (merged.estimated_days !== null && merged.estimated_days > 120)
       throw httpError(422, "La obra no puede pasar de 120 días laborables.");
+    await assertTeamAssignable(c, merged.team_id);
     const check = await validateAgainstDb(c, { ...merged, id: "" }, status, today);
     failIfErrors(check.errors);
     return { project: await insertProject(c, merged, req.user!.id), warnings: check.warnings };
@@ -141,6 +142,7 @@ projects.patch("/:id", authenticated, async (req, res) => {
     const merged = mergeProject(fieldsOf(before), patch, status.kind, today);
     if (merged.estimated_days !== null && merged.estimated_days > 120)
       throw httpError(422, "La obra no puede pasar de 120 días laborables.");
+    await assertTeamAssignable(c, merged.team_id, before.team_id);
     const check = await validateAgainstDb(c, { ...merged, id }, status, today);
     failIfErrors(check.errors);
     const changes = changedFields(fieldsOf(before), merged);
