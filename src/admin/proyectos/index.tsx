@@ -80,6 +80,7 @@ export default function Proyectos() {
       const need = [
         s.requires_schedule && !p.start_date && "la fecha de inicio",
         s.requires_schedule && !p.team_id && "el equipo",
+        s.requires_schedule && !p.end_date && !p.estimated_days && "el fin previsto o los días estimados",
         s.requires_reason && !p.pause_reason.trim() && "el motivo de la pausa",
       ].filter(Boolean);
       if (need.length) {

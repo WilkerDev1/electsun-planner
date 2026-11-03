@@ -28,6 +28,8 @@ export function useLive<T>(path: string, cacheKey: string, eventsQuery = "") {
   });
   const inflight = useRef(false);
   const dirty = useRef(false);
+  // El reintento tras `dirty` debe pedir la ruta actual, no la de la petición que acaba de terminar.
+  const latest = useRef<() => Promise<void>>(async () => {});
 
   const load = useCallback(async (): Promise<void> => {
     // Si llega un cambio con una petición en curso, se repite al terminar para no quedarse con datos viejos.
@@ -57,9 +59,10 @@ export function useLive<T>(path: string, cacheKey: string, eventsQuery = "") {
       setState((s) => ({ ...s, error: err, offline: err.status === 0, revoked: err.status === 401 || err.status === 403 }));
     } finally {
       inflight.current = false;
-      if (dirty.current) void load();
+      if (dirty.current) void latest.current();
     }
   }, [path, cacheKey]);
+  latest.current = load;
 
   useEffect(() => {
     void load();

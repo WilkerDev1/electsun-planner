@@ -181,7 +181,7 @@ Todas viven en `shared/domain.ts` y las usan servidor y cliente.
 
 | ID | Regla | Nivel |
 |---|---|---|
-| **VAL-01 [M]** | Estado con `requires_schedule` (Programado, En obra) sin inicio o sin equipo | Error en servidor (422); en la UI se permite cambiar el estado solo si se completan los datos |
+| **VAL-01 [M]** | Estado con `requires_schedule` (Programado, En obra) sin inicio, sin equipo o sin fin previsto ni días estimados | Error en servidor (422); en la UI se permite cambiar el estado solo si se completan los datos |
 | **VAL-02 [M]** | Estado con `requires_reason` sin motivo | Error (422) |
 | **VAL-03 [M]** | Fin anterior al inicio | Error (422) |
 | **VAL-04 [M]** | Inicio anterior a la fecha de venta | Aviso |
@@ -221,7 +221,7 @@ Referencia: `V4EquipoTablas.dc.html` (pestañas Empleados, Equipos de obra, Empr
 
 **EQP-05 [M]** **Empresas**: nombre único, sigla de 2 letras única, color. Aviso si el color está a menos de 60 de distancia RGB del naranja de la marca `#EA6A1F` o de otra empresa.
 
-**EQP-06 [M]** No se puede desactivar un equipo ni borrar una empresa con proyectos no archivados; se ofrece desactivar.
+**EQP-06 [M]** No se puede desactivar un equipo ni borrar una empresa con proyectos no archivados; se ofrece desactivar. Un equipo inactivo no admite obras nuevas (tabla, panel e importación); la obra que ya lo tenía lo conserva.
 
 ### 4.6 Avisos (AVI)
 
@@ -239,11 +239,11 @@ Referencia: `V4MuralPrincipal.dc.html` (diseño principal) y `V4Mural.dc.html` (
 
 **MUR-02 [M]** Cabecera: marca, reloj en vivo y fecha larga (si el interruptor Reloj está activo) y 4 indicadores:
 - **En obra**: proyectos de tipo `en_obra`.
-- **Próximos**: `programado` con inicio en los próximos 14 días.
+- **Próximos**: `programado` con inicio entre hoy y los próximos 14 días; los de inicio ya pasado no cuentan.
 - **Por programar**: `por_programar` + `en_pausa`.
 - **Terminados del mes**: `actual_end` en el mes actual.
 
-**MUR-03 [M]** Diseño principal, columna izquierda "Proyectos activos": `en_obra` primero (barra "Día X de N" o "Atrasada · +N días" en ámbar), luego `programado` ("Inicia hoy", "Inicia mañana", "Inicia en N días", en días naturales). Orden según la configuración: por fecha, o con prioridad primero. Bandera de prioridad si está activa.
+**MUR-03 [M]** Diseño principal, columna izquierda "Proyectos activos": `en_obra` primero (barra "Día X de N" o "Atrasada · +N días" en ámbar), luego `programado` ("Inicia hoy", "Inicia mañana", "Inicia en N días", en días naturales; "Debía iniciar el …" si el inicio ya pasó). Una obra en curso sin fin se trata como fin = inicio. Como mucho 7 filas y "y N más". Orden según la configuración: por fecha, o con prioridad primero. Bandera de prioridad si está activa.
 
 **MUR-04 [M]** Diseño principal, columna derecha: "Calendario por equipo" con N semanas (2, 3 o 4) de lunes a sábado, una fila por equipo activo, línea de "hoy" naranja `#C2410C`, barras con la regla de etiqueta de CAL-03 y el exceso de atraso como tramo ámbar discontinuo.
 
@@ -277,7 +277,7 @@ Referencia: `V4Movil.dc.html` (pantallas `hoy`, `obras`, `calendario` con `cal-m
 
 **MOV-04 [M]** **Calendario** con dos modos:
 - **Agenda**: por día laborable, 3 semanas, incluye atrasadas hasta hoy con etiqueta "Atrasada".
-- **Línea de tiempo**: filas por equipo, 3 semanas con scroll horizontal, línea de hoy, tramo de atraso.
+- **Línea de tiempo**: filas por equipo, 3 semanas con scroll horizontal, línea de hoy, tramo de atraso. Una obra atrasada cuya barra planificada quedó fuera de la ventana se muestra solo con su tramo de atraso. Cada barra es un área táctil de 44 px de alto.
 
 **MOV-05 [M]** **Detalle de obra**: empresa, estado, fechas, días, equipo asignado e integrantes (con `tel:`), observación, preparación (motivo de espera), lugar con enlace de mapas.
 
@@ -305,7 +305,7 @@ Viven en `shared/domain.ts`, sin dependencias, con pruebas unitarias. Fechas com
 
 **CAL-01 [M]** `today(tz)` devuelve la fecha ISO en `America/Santo_Domingo`. `isWorkday(d)`: lunes a sábado. `workdayIndex(d, base)`: con `base` un lunes, `días = (d − base)`, `w = floor(días / 7)`, `índice = 6w + min(días − 7w, 5)` (el domingo se pega al sábado).
 
-**CAL-02 [M]** `countWorkdays(a, b)` cuenta días laborables en `[a, b]`. `dayOf(p, hoy)` = "Día X de N", con X = `countWorkdays(inicio, hoy)` y N = `countWorkdays(inicio, fin)`. `startsIn(p, hoy)` = "Inicia hoy", "Inicia mañana" o "Inicia en N días", en días naturales, como en el artboard del mural. Verificación con hoy = mar 27 oct 2026: Colegio Arcoíris 19→30 oct es "Día 8 de 11"; Taller Motormax 19 oct→6 nov es "Día 8 de 17"; Granja Los Pinos 22→26 oct sigue En obra, así que es "Atrasada · +1 día" (CAL-06).
+**CAL-02 [M]** `countWorkdays(a, b)` cuenta días laborables en `[a, b]`. `dayOf(p, hoy)` = "Día X de N", con X = `countWorkdays(inicio, hoy)` y N = `countWorkdays(inicio, fin)`. `startsIn(p, hoy)` = "Inicia hoy", "Inicia mañana" o "Inicia en N días", en días naturales, como en el artboard del mural; con inicio ya pasado, "Debía iniciar el …". `effectiveEnd(p)` = fin, o inicio si no hay fin (datos antiguos). Verificación con hoy = mar 27 oct 2026: Colegio Arcoíris 19→30 oct es "Día 8 de 11"; Taller Motormax 19 oct→6 nov es "Día 8 de 17"; Granja Los Pinos 22→26 oct sigue En obra, así que es "Atrasada · +1 día" (CAL-06).
 
 **CAL-03 [M]** `placeBar(inicio, fin, rango)` → `{ visible, col, span, clipStart, clipEnd, labelInside }`. `clipStart` si empieza antes del rango (esquina izquierda recta), `clipEnd` si termina después; `labelInside` si `span ≥ 5`.
 

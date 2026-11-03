@@ -4,29 +4,33 @@
 }
 :80 {
 	encode zstd gzip
-	# Las sondas de salud solo las usa Docker, directo al contenedor.
-	respond /healthz 404
-	respond /readyz 404
 	request_body {
 		max_size 6MB
 	}
 
-	# BEHIND_CLOUDFLARE=true (valor por defecto en compose.yaml, producción): detrás del túnel,
-	# toda petición real trae Cf-Connecting-Ip; sin ella se rechaza con 403.
-	# BEHIND_CLOUDFLARE=false (compose.local.yaml, demo): no hay Cloudflare; se ignora la
-	# cabecera (podría falsificarse) y X-Forwarded-For lleva la IP real de la conexión.
-	@cloudflare expression `'{$BEHIND_CLOUDFLARE:true}' == 'true'`
-	handle @cloudflare {
-		@sin_ip_cf not header Cf-Connecting-Ip *
+	# BEHIND_CLOUDFLARE (por defecto true en compose.yaml, producción): detrás del túnel toda
+	# petición real trae Cf-Connecting-Ip; sin ella se rechaza con 403. Solo el valor exacto
+	# "false" (compose.local.yaml, demo) desactiva la comprobación: ahí la cabecera se ignora
+	# (podría falsificarse) y X-Forwarded-For lleva la IP real de la conexión.
+	@cf expression `'{$BEHIND_CLOUDFLARE:true}' != 'false'`
+	@local expression `'{$BEHIND_CLOUDFLARE:true}' == 'false'`
+	@sin_ip_cf {
+		expression `'{$BEHIND_CLOUDFLARE:true}' != 'false'`
+		not header Cf-Connecting-Ip *
+	}
+
+	# `route` respeta el orden escrito: sondas, luego el filtro de Cloudflare, luego la API.
+	route {
+		# Las sondas de salud solo las usa Docker, directo al contenedor.
+		respond /healthz 404
+		respond /readyz 404
 		respond @sin_ip_cf "Acceso no permitido." 403
-		reverse_proxy planner-api:8080 {
+		reverse_proxy @cf planner-api:8080 {
 			# SSE del mural y del móvil: sin búfer.
 			flush_interval -1
 			header_up X-Forwarded-For {http.request.header.Cf-Connecting-Ip}
 		}
-	}
-	handle {
-		reverse_proxy planner-api:8080 {
+		reverse_proxy @local planner-api:8080 {
 			flush_interval -1
 			header_up X-Forwarded-For {http.request.remote.host}
 		}
