@@ -54,6 +54,8 @@ test("casos verificados del diseño (CAL-02)", () => {
   assert.equal(lateText(1), "Atrasada · +1 día");
   assert.equal(lateText(3), "Atrasada · +3 días");
   assert.equal(lateDays("programado", "2026-10-26", TODAY), 0);
+  assert.equal(lateDays("en_obra", "2026-10-25", TODAY), 2); // fin en domingo: cuentan lun 26 y mar 27
+  assert.equal(lateDays("en_obra", "2026-10-25", "2026-10-26"), 1);
   assert.equal(lateDays("en_obra", TODAY, TODAY), 0);
 });
 

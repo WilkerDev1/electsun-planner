@@ -229,6 +229,12 @@ test("crear proyecto nuevo con estado por programar (PRY-05)", async () => {
   assert.equal((await ctx.request("/projects", "POST", { company_id: companies["Electsun"], name: "X" })).status, 401);
   assert.equal((await ctx.request("/projects", "POST", { company_id: companies["Electsun"] }, ctx.office)).status, 422);
   assert.equal((await ctx.request("/projects", "POST", { company_id: "00000000-0000-4000-8000-000000000000", name: "X" }, ctx.office)).status, 422);
+  // ROL-03 al crear: office no puede fijar la prioridad; admin sí.
+  assert.equal((await ctx.request("/projects", "POST", { company_id: companies["Electsun"], name: "Prio", priority: true }, ctx.office)).status, 403);
+  const prio = await ctx.request<Project>("/projects", "POST", { company_id: companies["Electsun"], name: "Prio admin", priority: true }, ctx.admin);
+  assert.equal(prio.status, 201);
+  assert.equal(prio.data.priority, true);
+  await ctx.request(`/projects/${prio.data.id}/archive`, "POST", { version: prio.data.version }, ctx.admin);
   const events = currentVersion();
   const r = await ctx.request<Project & { warnings: string[] }>(
     "/projects",

@@ -24,7 +24,8 @@ export const verifyPassword = (h: string, p: string) => argon2.verify(h, p);
 
 export const cookieOptions = {
   httpOnly: true,
-  secure: process.env.COOKIE_SECURE === "true",
+  // AUT-02: Secure en producción; se deduce de un APP_ORIGIN https aunque falte COOKIE_SECURE.
+  secure: process.env.COOKIE_SECURE === "true" || (process.env.APP_ORIGIN ?? "").startsWith("https://"),
   sameSite: "strict" as const,
   path: "/",
 };

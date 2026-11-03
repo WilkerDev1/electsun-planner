@@ -315,14 +315,14 @@ test("con el enlace canjeado la vista responde 200 con los datos del empleado (M
   assert.equal(again.data.hoy.current?.notes, "Llevar escalera larga");
 });
 
-test("el estado Vacaciones suspende la vista y Activo la devuelve; De baja revoca el enlace (ACC-06)", async () => {
+test("en Vacaciones la vista sigue disponible; De baja revoca el enlace (ACC-06)", async () => {
   const { id, cookie } = await activate("Starlin Reyes");
   const first = await ctx.request<MovilView>("/view/movil", "GET", undefined, cookie);
   assert.equal(first.status, 200);
   assert.equal(first.data.hoy.current?.late_days, 1);
   const version = async () => (await ctx.request<{ id: string; version: number }[]>("/employees", "GET", undefined, ctx.office)).data.find((e) => e.id === id)!.version;
   assert.equal((await ctx.request("/employees/" + id, "PATCH", { version: await version(), state: "Vacaciones" }, ctx.office)).status, 200);
-  assert.equal((await ctx.request("/view/movil", "GET", undefined, cookie)).status, 403);
+  assert.equal((await ctx.request("/view/movil", "GET", undefined, cookie)).status, 200);
   assert.equal((await ctx.request("/employees/" + id, "PATCH", { version: await version(), state: "Activo" }, ctx.office)).status, 200);
   assert.equal((await ctx.request("/view/movil", "GET", undefined, cookie)).status, 200);
   assert.equal((await ctx.request("/employees/" + id, "PATCH", { version: await version(), state: "De baja" }, ctx.office)).status, 200);

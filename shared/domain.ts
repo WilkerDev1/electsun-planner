@@ -160,7 +160,7 @@ export function startsIn(start: ISODate, today: ISODate) {
 /** Días laborables de atraso: obra "en_obra" cuyo fin previsto ya pasó (CAL-06). */
 export function lateDays(kind: StatusKind, end: ISODate | null, today: ISODate): number {
   if (kind !== "en_obra" || !end || end >= today) return 0;
-  return countWorkdays(end, today) - 1;
+  return countWorkdays(addDays(end, 1), today);
 }
 
 export const lateText = (n: number) => `Atrasada · +${plural(n, "día", "días")}`;

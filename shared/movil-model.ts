@@ -289,7 +289,7 @@ export function mobileModel(input: MobileInput, employeeId: string, today: ISODa
       .sort((a, b) => a.sort - b.sort)
       .map((n) => ({ title: "Aviso general", text: n.text })),
     ...jobs
-      .filter(({ p, j }) => j.mine && p.show_on_mural && p.notes.trim() && p.mural_until !== null && today <= p.mural_until)
+      .filter(({ p, j }) => j.mine && p.show_on_mural && p.notes.trim() && (p.mural_until === null || today <= p.mural_until))
       .map(({ p }) => ({ title: p.name, text: p.notes.trim() })),
   ];
 

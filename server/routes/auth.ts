@@ -9,6 +9,7 @@ import { SESSION_COOKIE } from "../../shared/contracts/access.js";
 
 // Portado de Monitor server/accounts.ts (AUT-01, AUT-03, AUT-05, AUT-07).
 export const auth = Router();
+const dummyHash = passwordHash("planner-sin-cuenta-" + Math.random());
 
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -26,7 +27,9 @@ auth.get("/me", (req, res) => {
 auth.post("/login", authLimiter, async (req, res) => {
   const b = LoginBody.parse(req.body);
   const u = (await pool.query("SELECT id,password_hash FROM users WHERE email=$1 AND active", [b.email.toLowerCase()])).rows[0];
-  if (!u?.password_hash || !(await verifyPassword(u.password_hash, b.password)))
+  // Sin cuenta también se verifica contra un hash, para no delatar por tiempo qué correos existen (AUT-01).
+  const ok = await verifyPassword(u?.password_hash ?? (await dummyHash), b.password);
+  if (!u?.password_hash || !ok)
     return res.status(401).json({ message: "Correo o contraseña incorrectos." });
   await issueSession(res, u.id);
   res.json({ ok: true });

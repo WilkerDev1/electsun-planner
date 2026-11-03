@@ -32,7 +32,7 @@ El **rol de acceso** (qué puede hacer una cuenta) es independiente del **nivel 
 | Actor | Cómo entra | Puede |
 |---|---|---|
 | **Administrador** (jefe) | Cuenta con correo y contraseña | Todo lo de Oficina, más fijar la prioridad, gestionar cuentas, crear enlaces de TV y móvil y configurar el mural |
-| **Oficina** | Cuenta con correo y contraseña | Proyectos, estados, fechas, equipos, preparación, avisos, catálogos (empleados, equipos, empresas, estados), importar y exportar |
+| **Oficina** | Cuenta con correo y contraseña | Proyectos, estados de los proyectos, fechas, equipos, preparación, avisos, catálogos (empleados, equipos, empresas), importar y exportar. La lista de estados (EST-04) solo la edita el administrador |
 | **Empleado móvil** | Enlace personal (`/m/activar#token`) | Ver `/m`: sus obras, su equipo, calendario. Solo lectura |
 | **Pantalla TV** | Enlace de dispositivo (`/tv/:id#token`) | Ver `/tv/:id`. Solo lectura |
 
@@ -96,7 +96,7 @@ Se porta `server/boards.ts` (activación por token con hash) como una tabla gen�
 
 **ACC-05 [M]** Cada lectura con cookie de dispositivo actualiza `last_seen_at` (como mucho una vez por minuto).
 
-**ACC-06 [M]** El enlace móvil solo se puede crear para un empleado `Activo`. Pasar un empleado a "De baja" revoca su enlace.
+**ACC-06 [M]** El enlace móvil solo se puede crear para un empleado `Activo`. Pasar un empleado a "De baja" revoca su enlace; en "Vacaciones" el enlace sigue funcionando.
 
 **ACC-07 [M]** La UI muestra el enlace con un botón "Copiar" y un **código QR** generado en el cliente. Los enlaces de TV se gestionan en Mural; los de móvil, en la fila del empleado (columna "Acceso móvil").
 
@@ -218,13 +218,13 @@ Referencia: `V4EquipoTablas.dc.html` (pestañas Empleados, Equipos de obra, Empr
 
 **EQP-04 [M]** Un empleado pertenece como mucho a un equipo. Asignar un integrante desde el equipo cambia su `team_id`.
 
-**EQP-05 [M]** **Empresas**: nombre único, sigla de 2 letras única, color. Aviso si el color está a menos de ΔE 20 (aprox. en RGB) del naranja de la marca `#EA6A1F` o de otra empresa.
+**EQP-05 [M]** **Empresas**: nombre único, sigla de 2 letras única, color. Aviso si el color está a menos de 60 de distancia RGB del naranja de la marca `#EA6A1F` o de otra empresa.
 
 **EQP-06 [M]** No se puede desactivar un equipo ni borrar una empresa con proyectos no archivados; se ofrece desactivar.
 
 ### 4.6 Avisos (AVI)
 
-**AVI-01 [M]** Observación de proyecto: aparece en el mural si `show_on_mural` y `hoy ≤ mural_until`.
+**AVI-01 [M]** Observación de proyecto: aparece en el mural y en el móvil si `show_on_mural` y `hoy ≤ mural_until` (sin fecha, mientras siga activada).
 
 **AVI-02 [M]** Avisos generales: texto ≤ 140 caracteres, `starts_on`, `expires_on`, orden. Se gestionan en Mural · Configuración.
 
@@ -304,7 +304,7 @@ Viven en `shared/domain.ts`, sin dependencias, con pruebas unitarias. Fechas com
 
 **CAL-01 [M]** `today(tz)` devuelve la fecha ISO en `America/Santo_Domingo`. `isWorkday(d)`: lunes a sábado. `workdayIndex(d, base)`: con `base` un lunes, `días = (d − base)`, `w = floor(días / 7)`, `índice = 6w + min(días − 7w, 5)` (el domingo se pega al sábado).
 
-**CAL-02 [M]** `countWorkdays(a, b)` cuenta días laborables en `[a, b]`. `dayOf(p, hoy)` = "Día X de N", con X = `countWorkdays(inicio, hoy)` y N = `countWorkdays(inicio, fin)`. `startsIn(p, hoy)` = "Hoy", "Mañana" o "Inicia en N días" (días laborables). Verificación con hoy = mar 27 oct 2026: Colegio Arcoíris 19→30 oct es "Día 8 de 11"; Taller Motormax 19 oct→6 nov es "Día 8 de 17"; Granja Los Pinos 22→26 oct sigue En obra, así que es "Atrasada · +1 día" (CAL-06).
+**CAL-02 [M]** `countWorkdays(a, b)` cuenta días laborables en `[a, b]`. `dayOf(p, hoy)` = "Día X de N", con X = `countWorkdays(inicio, hoy)` y N = `countWorkdays(inicio, fin)`. `startsIn(p, hoy)` = "Inicia hoy", "Inicia mañana" o "Inicia en N días", en días naturales, como en el artboard del mural. Verificación con hoy = mar 27 oct 2026: Colegio Arcoíris 19→30 oct es "Día 8 de 11"; Taller Motormax 19 oct→6 nov es "Día 8 de 17"; Granja Los Pinos 22→26 oct sigue En obra, así que es "Atrasada · +1 día" (CAL-06).
 
 **CAL-03 [M]** `placeBar(inicio, fin, rango)` → `{ visible, col, span, clipStart, clipEnd, labelInside }`. `clipStart` si empieza antes del rango (esquina izquierda recta), `clipEnd` si termina después; `labelInside` si `span ≥ 5`.
 
@@ -312,7 +312,7 @@ Viven en `shared/domain.ts`, sin dependencias, con pruebas unitarias. Fechas com
 
 **CAL-05 [M]** `addWorkdays(inicio, n)`: el día `n` laborable contando el inicio como día 1. `estimatedEnd(inicio, dias)`. Al editar `estimated_days` se recalcula `end_date`; al editar `end_date` a mano se recalcula `estimated_days`.
 
-**CAL-06 [M]** `lateDays(p, hoy)` = `countWorkdays(fin, hoy) − 1` si el tipo es `en_obra` y `fin < hoy`; si no, 0. Texto "Atrasada · +N días".
+**CAL-06 [M]** `lateDays(p, hoy)` = `countWorkdays(fin + 1, hoy)` si el tipo es `en_obra` y `fin < hoy`; si no, 0. Texto "Atrasada · +N días".
 
 **CAL-07 [M]** `missingPrep(p)` → lista de `planos`, `material`, `EDE` (solo `neta`). `waitReason(p)` = "Espera planos y material", o "Lista para programar".
 

@@ -17,8 +17,8 @@ viewMovil.get("/", device("mobile"), async (req, res) => {
     await pool.query("SELECT id,name,job,level,team_id,state,phone FROM employees ORDER BY name")
   ).rows as MobileEmployee[];
   const me = employees.find((e) => e.id === req.device!.employee_id);
-  // El enlace deja de valer cuando el empleado ya no está activo (ACC-06): 403 y la pantalla lo explica.
-  if (!me || me.state !== "Activo") return res.status(403).json({ message: GONE });
+  // El enlace deja de valer cuando el empleado pasa a "De baja" (ACC-06): 403 y la pantalla lo explica.
+  if (!me || me.state === "De baja") return res.status(403).json({ message: GONE });
 
   const [teams, statuses, projects, companies, notices] = await Promise.all([
     listTeams(pool),

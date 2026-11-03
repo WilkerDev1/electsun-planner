@@ -139,7 +139,7 @@ export async function importProjects(
   // Proyectos actuales (con bloqueo si vamos a escribir)
   const current = (
     await c.query(
-      `SELECT ${PROJECT_COLUMNS} FROM projects p JOIN statuses s ON s.id=p.status_id WHERE NOT p.archived
+      `SELECT ${PROJECT_COLUMNS} FROM projects p JOIN statuses s ON s.id=p.status_id
        ${opts.dry ? "" : "FOR UPDATE OF p"}`,
     )
   ).rows as Project[];
@@ -266,6 +266,7 @@ export async function importProjects(
         (p) => part === undefined || fold(p.part) === fold(part),
       );
       if (matches.length > 1) fail("Hay más de un proyecto con ese nombre en la empresa. Agrega la columna «Parte» para distinguirlos.");
+      else if (matches[0]?.archived) fail("Ese proyecto está archivado. Desarchívalo en la tabla antes de importarlo.");
       else prev = matches[0];
     }
     if (errors.length) {

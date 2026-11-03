@@ -126,6 +126,7 @@ app.use((error: unknown, _req: express.Request, res: express.Response, _next: ex
 });
 
 export async function start() {
+  if (!process.env.APP_ORIGIN) throw new Error("Falta APP_ORIGIN: sin él no se puede comprobar el origen de las escrituras.");
   await migrate();
   if (process.env.BOOTSTRAP_EMAIL && process.env.BOOTSTRAP_PASSWORD) {
     const present = await pool.query("SELECT id FROM users LIMIT 1");

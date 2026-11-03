@@ -100,6 +100,9 @@ projects.get("/:id/history", authenticated, async (req, res) => {
 
 // PRY-05
 projects.post("/", authenticated, async (req, res) => {
+  // ROL-03 también al crear: la prioridad solo la fija el administrador.
+  if (req.user!.role !== "admin" && req.body && typeof req.body === "object" && req.body.priority === true)
+    throw httpError(403, "Solo el administrador puede cambiar la prioridad.");
   const body = ProjectCreate.parse(prepare(req.body));
   const today = serverToday();
   const out = await transaction(async (c) => {
