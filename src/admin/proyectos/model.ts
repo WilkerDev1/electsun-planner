@@ -10,6 +10,9 @@ import {
   rangeLabel,
   validateProject,
   type Schedulable,
+  type WarningCode,
+  addDays,
+  lateDays,
   warningCodeOf,
 } from "../../../shared/domain";
 
@@ -92,6 +95,19 @@ const FIELD_LABEL: Record<string, string> = {
   notes: "la observación", start_date: "el inicio", end_date: "el fin previsto",
 };
 
+/** Historial de la preparación: el diff viene por código (`{ PL: true }`) y se cuenta qué se agregó, quitó o cambió. */
+function describePrep(before: unknown, after: unknown): string[] {
+  const a = (before && typeof before === "object" ? before : {}) as Record<string, boolean>;
+  const b = (after && typeof after === "object" ? after : {}) as Record<string, boolean>;
+  const out: string[] = [];
+  for (const code of Object.keys(b)) {
+    if (!(code in a)) out.push(`agregó ${code} a la preparación`);
+    else if (a[code] !== b[code]) out.push(b[code] ? `marcó ${code} como hecho` : `dejó ${code} pendiente`);
+  }
+  for (const code of Object.keys(a)) if (!(code in b)) out.push(`quitó ${code} de la preparación`);
+  return out.length ? out : ["cambió la preparación"];
+}
+
 export function describeChange(h: HistoryEntry, lk: Lookup): string {
   if (h.action === "project.create") return "creó el proyecto";
   if (h.action === "project.archive") return "archivó el proyecto";
@@ -109,6 +125,7 @@ export function describeChange(h: HistoryEntry, lk: Lookup): string {
     else if (key === "system_type") phrases.push(`cambió el tipo a ${b === "hibrido" ? "Híbrido" : "Medición neta"}`);
     else if (key === "show_on_mural") phrases.push(b ? "mostró la observación en el mural" : "quitó la observación del mural");
     else if (key === "actual_end" || key === "mural_until") continue;
+    else if (key === "prep") phrases.push(...describePrep(a, b));
     else phrases.push(`cambió ${FIELD_LABEL[key] ?? key}`);
   }
   if (!phrases.length) return "actualizó el proyecto";
@@ -139,3 +156,70 @@ export function toggledPrep(p: Pick<Project, "prep">, itemId: string): PrepEntry
     ? p.prep.map((e) => (e.item_id === itemId ? { ...e, done: !e.done } : e))
     : [...p.prep, { item_id: itemId, done: true }];
 }
+
+// ---------- Preparación opcional por proyecto (PRY-12) ----------
+
+/** Ordena la lista de preparación como el catálogo, igual que el servidor. */
+export function sortedPrep(prep: PrepEntry[], catalog: readonly { id: string }[]): PrepEntry[] {
+  const order = new Map(catalog.map((c, i) => [c.id, i]));
+  return [...prep].sort((x, y) => (order.get(x.item_id) ?? 999) - (order.get(y.item_id) ?? 999));
+}
+
+/** Lista de preparación tras agregar un parámetro (pendiente) a un proyecto o quitárselo. */
+export function withPrepItem(p: Pick<Project, "prep">, itemId: string, selected: boolean, catalog: readonly { id: string }[]): PrepEntry[] {
+  const has = p.prep.some((e) => e.item_id === itemId);
+  if (selected) return has ? p.prep : sortedPrep([...p.prep, { item_id: itemId, done: false }], catalog);
+  return p.prep.filter((e) => e.item_id !== itemId);
+}
+
+// ---------- Avisos de cada proyecto (VAL-10) ----------
+
+/** Un aviso con su código; sin código es un error de validación heredado. */
+export type Aviso = { code: WarningCode | "error"; text: string };
+export const AVISO_SEP = "\n";
+
+export const parseAvisos = (joined: string): Aviso[] =>
+  joined ? joined.split(AVISO_SEP).map((text) => ({ code: warningCodeOf(text) ?? "error", text })) : [];
+
+/** Resumen corto del disparador cuando el proyecto tiene un solo aviso. */
+export function avisoShort(a: Aviso, p: Pick<Project, "status_kind" | "end_date">, today: string): string {
+  switch (a.code) {
+    case "atrasada": return `Atrasada · +${lateDays(p.status_kind, p.end_date, today)}`;
+    case "prep_pendiente": return "Falta preparación";
+    case "choque_equipo": return "Choque de equipo";
+    case "inicio_antes_venta": return "Inicio antes de la venta";
+    default: return "Revisar datos";
+  }
+}
+
+/** Abierto por defecto si hay un error o un atraso; los avisos informativos empiezan cerrados. */
+export const avisoOpenByDefault = (list: Aviso[]) => list.some((a) => a.code === "error" || a.code === "atrasada");
+
+const AVISO_KEY = (id: string) => `planner.aviso.${id}`;
+export function readAvisoPref(id: string): boolean | null {
+  try {
+    const v = window.localStorage.getItem(AVISO_KEY(id));
+    return v === "1" ? true : v === "0" ? false : null;
+  } catch {
+    return null;
+  }
+}
+export function saveAvisoPref(id: string, open: boolean) {
+  try {
+    window.localStorage.setItem(AVISO_KEY(id), open ? "1" : "0");
+  } catch {
+    /* sin almacenamiento: la preferencia dura solo esta sesión */
+  }
+}
+
+// ---------- Archivar (PRY-10) ----------
+
+export const STALE_DAYS = 30;
+/** Proyectos terminados cuyo fin real o previsto pasó hace más de 30 días y siguen sin archivar. */
+export const staleFinished = (rows: Project[], today: string): Project[] => {
+  const cutoff = addDays(today, -STALE_DAYS);
+  return rows.filter((p) => {
+    const end = p.actual_end ?? p.end_date;
+    return !p.archived && p.status_kind === "terminado" && !!end && end < cutoff;
+  });
+};

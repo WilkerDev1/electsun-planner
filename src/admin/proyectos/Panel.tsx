@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../../ui/api";
 import type { HistoryEntry, Project } from "../../../shared/contracts/projects";
 import type { Status } from "../../../shared/contracts/statuses";
@@ -7,8 +8,8 @@ import {
   waitReason, waitLabel, prepRows, workdayIndex, missingPrep,
 } from "../../../shared/domain";
 import { AutoArea, AutoDate, AutoText } from "./inputs";
-import { ago, describeChange, isClashWarning, isLateWarning, teamLabel, toggledPrep, type Catalogs, type EditPatch, type Lookup } from "./model";
-import { Monogram } from "./Table";
+import { ago, describeChange, isClashWarning, isLateWarning, teamLabel, toggledPrep, withPrepItem, type Catalogs, type EditPatch, type Lookup } from "./model";
+import { CompanyMark } from "../../ui/CompanyMark";
 import type { SaveState } from "./store";
 
 // Panel de edición (PRY-06): las mismas secciones del artboard V4Proyectos con `abierto`.
@@ -129,9 +130,10 @@ export function Panel({ project: p, catalogs, lk, rows, today, isAdmin, save, la
 
   // ----- Preparación (CAL-07) -----
   const miss = missingPrep(p, catalogs.prepItems);
-  const prepItems = prepRows(p, catalogs.prepItems).map(({ item, applies, done }) => ({
-    key: item.id, title: item.name, applies, done, hint: applies ? `Si falta: ${waitLabel(item.pending_label)}` : "No aplica a este tipo de sistema",
-  }));
+  const prepAll = prepRows(p, catalogs.prepItems);
+  const prepMine = prepAll.filter((r) => r.selected);
+  const prepFree = prepAll.filter((r) => !r.selected);
+  const prepAddId = useId();
 
   // ----- Programación y vista previa (CAL-03, CAL-05, PRY-07) -----
   const teams = catalogs.teams.filter((t) => t.active || t.id === p.team_id);
@@ -161,7 +163,7 @@ export function Panel({ project: p, catalogs, lk, rows, today, isAdmin, save, la
     <aside aria-label="Editar proyecto" className="sticky top-4 flex max-h-[calc(100dvh-32px)] min-w-0 flex-col rounded-[18px] border border-line bg-fill-2 shadow-[0_12px_32px_rgba(16,24,40,0.08)]">
       <div className="flex items-center justify-between gap-3 px-5 pb-1.5 pt-[18px]">
         <div className="flex min-w-0 items-center gap-3">
-          <Monogram code={company?.code ?? "··"} color={company?.color} size={40} />
+          {company && <CompanyMark company={company} size={40} decorative />}
           <div className="flex min-w-0 flex-col leading-tight">
             <span className="text-[13px] font-semibold text-subtle">Editar proyecto</span>
             <span className="truncate text-xl font-extrabold">{p.name}</span>
@@ -299,30 +301,60 @@ export function Panel({ project: p, catalogs, lk, rows, today, isAdmin, save, la
                 );
               })}
             </div>
-            {prepItems.map((c) => {
-              const na = !c.applies;
-              const ok = !na && c.done;
+            {prepMine.length === 0 && <p className="m-0 text-sm text-subtle">Este proyecto no necesita preparación. Agrega un parámetro si hace falta.</p>}
+            {prepMine.map(({ item, applies, done }) => {
+              const na = !applies;
+              const ok = !na && done;
               return (
-                <button
-                  key={c.key}
-                  type="button"
-                  role="checkbox"
-                  aria-checked={ok}
-                  disabled={na}
-                  onClick={() => patch({ prep: toggledPrep(p, c.key) })}
-                  className="flex min-h-11 items-center gap-2.5 rounded-[10px] border px-2.5 py-1.5 text-left"
-                  style={{ background: na ? "#F9FAFB" : "#FFFFFF", borderColor: na ? "#F0F1F4" : ok ? "#D7EFE0" : "#F6DDB3", cursor: na ? "default" : "pointer" }}
+                <div
+                  key={item.id}
+                  className="flex min-h-11 items-center gap-1 rounded-[10px] border pr-1"
+                  style={{ background: na ? "#F9FAFB" : "#FFFFFF", borderColor: na ? "#F0F1F4" : ok ? "#D7EFE0" : "#F6DDB3" }}
                 >
-                  <span aria-hidden className="flex size-[22px] shrink-0 items-center justify-center rounded-md border-2 text-white" style={{ background: ok ? "#16A34A" : "#FFFFFF", borderColor: na ? "#D0D5DD" : ok ? "#16A34A" : "#F59E0B" }}>
-                    {ok && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round"><path d="m5 12 5 5 9-10" /></svg>}
-                  </span>
-                  <span className="flex flex-col leading-[1.3]">
-                    <span className={`text-sm font-bold ${na ? "text-faint" : "text-ink"}`}>{c.title}{na ? " (no aplica)" : ""}</span>
-                    <span className="text-xs text-subtle">{c.hint}</span>
-                  </span>
-                </button>
+                  <button
+                    type="button"
+                    role="checkbox"
+                    aria-checked={ok}
+                    disabled={na}
+                    onClick={() => patch({ prep: toggledPrep(p, item.id) })}
+                    className="flex min-h-11 min-w-0 flex-1 items-center gap-2.5 border-0 bg-transparent px-2.5 py-1.5 text-left"
+                    style={{ cursor: na ? "default" : "pointer" }}
+                  >
+                    <span aria-hidden className="flex size-[22px] shrink-0 items-center justify-center rounded-md border-2 text-white" style={{ background: ok ? "#16A34A" : "#FFFFFF", borderColor: na ? "#D0D5DD" : ok ? "#16A34A" : "#F59E0B" }}>
+                      {ok && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round"><path d="m5 12 5 5 9-10" /></svg>}
+                    </span>
+                    <span className="flex min-w-0 flex-col leading-[1.3]">
+                      <span className={`text-sm font-bold ${na ? "text-subtle" : "text-ink"}`}>{item.name}{na ? " (no aplica)" : ""}</span>
+                      <span className="text-xs text-subtle">{na ? "No aplica a este tipo de sistema" : `Si falta: ${waitLabel(item.pending_label)}`}</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Quitar ${item.name} de la preparación`}
+                    title="Quitar de este proyecto"
+                    onClick={() => patch({ prep: withPrepItem(p, item.id, false, catalogs.prepItems) })}
+                    className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent text-muted hover:bg-fill"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden><path d="M6 6l12 12M18 6 6 18" /></svg>
+                  </button>
+                </div>
               );
             })}
+            <div className="flex flex-wrap items-center gap-2">
+              {prepFree.length > 0 && (
+                <select
+                  id={prepAddId}
+                  aria-label="Agregar parámetro"
+                  value=""
+                  onChange={(e) => e.target.value && patch({ prep: withPrepItem(p, e.target.value, true, catalogs.prepItems) })}
+                  className="h-9 min-w-0 flex-1 cursor-pointer rounded-lg border border-line bg-white px-2 text-sm font-semibold text-ink-2"
+                >
+                  <option value="">Agregar parámetro…</option>
+                  {prepFree.map(({ item }) => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}
+                </select>
+              )}
+              <Link to="/ajustes#preparacion" className="text-[13px] font-semibold text-ink-2 underline">Editar catálogo</Link>
+            </div>
           </div>
         </Section>
 
