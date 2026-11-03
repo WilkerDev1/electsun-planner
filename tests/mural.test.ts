@@ -563,3 +563,40 @@ test("los estados editados (EST-04) cambian los colores del mural", async () => 
   assert.equal((await ctx.request(`/statuses/${obra.id}`, "PATCH", { version: obra.version + 1, name: "Otro" }, ctx.office)).status, 403);
   await pool.query("UPDATE statuses SET name='En obra',fg='#095C4F',bg='#E0F4EF',dot='#0B7A68' WHERE id=$1", [obra.id]);
 });
+
+// ---------- Fechas incompletas (MUR-02, MUR-03, MUR-04, CAL-06) ----------
+
+test("obra sin fecha de fin: el fin es el inicio, con atraso en la lista y en el calendario (MUR-03, MUR-04, CAL-06)", () => {
+  const data = structuredClone(input);
+  const p = data.projects.find((x) => x.name === "Colegio Arcoíris")!;
+  p.end_date = null; // empezó el lun 19 oct; hoy es mar 27
+  const m = model({}, data);
+  const r = rowOf(m, "Colegio Arcoíris");
+  assert.equal(r.progress!.late, 7); // del 20 al 27 de oct, sin domingo
+  assert.equal(r.progress!.text, "Atrasada · +7 días");
+  assert.equal(r.progress!.endText, "venció lun 19");
+  assert.equal(r.progress!.ratio, 1);
+  const bar = barsOf(m, "E1").find((b) => b.name === "Colegio Arcoíris")!;
+  assert.ok(bar.over, "el tramo de atraso se dibuja");
+  const trow = m.timeline.groups[0].rows.find((x) => x.name === "Colegio Arcoíris")!;
+  assert.ok(trow.over, "también en el timeline");
+  assert.equal(trow.when, "Atrasada · +7 días");
+});
+
+test("programado con inicio ya pasado no cuenta como próximo, pero sigue en la lista (MUR-02)", () => {
+  const data = structuredClone(input);
+  const p = data.projects.find((x) => x.name === "Sr. Herrera")!;
+  assert.equal(model({}, data).kpis[1].n, 6);
+  p.start_date = "2026-10-20";
+  p.end_date = "2026-10-21";
+  const m = model({}, data);
+  assert.equal(m.kpis[1].n, 5);
+  assert.equal(m.active.nProg, 6);
+  const r = rowOf(m, "Sr. Herrera");
+  assert.equal(r.kind, "programado");
+  assert.ok(r.countdown, "lleva el texto de startsIn");
+  // Empezar hoy sí cuenta.
+  p.start_date = TODAY;
+  p.end_date = "2026-10-28";
+  assert.equal(model({}, data).kpis[1].n, 6);
+});

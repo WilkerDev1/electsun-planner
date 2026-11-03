@@ -7,7 +7,7 @@ import { api } from "../ui/api";
 import { useLive } from "../ui/useLive";
 import { MuralScreen } from "./MuralScreen";
 import { ScaledCanvas } from "./ScaledCanvas";
-import { FONT, SunLogo, useNow } from "./shared";
+import { FONT, SunLogo } from "./shared";
 
 // Mural de TV (MUR-01, MUR-10..12, ACC-03, ACC-04). `/tv/:id` con enlace de dispositivo; `/mural/tv` (preview) con una cuenta.
 
@@ -65,7 +65,6 @@ function msToMidnight(now = new Date()) {
 
 function LiveMural({ link }: { link: string | null }) {
   const live = useLive<MuralView>(link ? `/view/mural?link=${link}` : "/view/mural", link ? `mural-${link}` : "mural-preview", link ? `?link=${link}` : "");
-  const now = useNow(1000);
   const { reload } = live;
 
   // A medianoche vuelve a pedir el mural, aunque no llegue ningún cambio: "hoy" y las barras se recalculan en el servidor.
@@ -98,7 +97,7 @@ function LiveMural({ link }: { link: string | null }) {
   return (
     <div className="fixed inset-0 bg-canvas" style={{ cursor: link ? "none" : undefined }}>
       <ScaledCanvas className="h-full w-full">
-        <MuralScreen view={live.data} live={{ now, fetchedAt: live.fetchedAt, offline: !!live.error }} />
+        <MuralScreen view={live.data} live={{ fetchedAt: live.fetchedAt, offline: !!live.error }} />
       </ScaledCanvas>
     </div>
   );

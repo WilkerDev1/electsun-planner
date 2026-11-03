@@ -1,15 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { BRAND, TODAY_LINE, TZ } from "../../shared/domain";
 import type { MuralView } from "../../shared/contracts/mural";
 
 // Piezas comunes de los dos diseños del mural.
 
 export const ACCENT = BRAND;
+/** Naranja oscuro para fondos con texto blanco y para marcar "hoy": blanco sobre #C2410C da 5,18:1 (NF-04); sobre #EA6A1F, 3,19:1. */
 export const TODAY_COLOR = TODAY_LINE;
 export const FONT = "'Plus Jakarta Sans Variable', system-ui, sans-serif";
 
 /** Estado de conexión que pinta el pie o la cabecera (MUR-07, MUR-11). */
-export type LiveInfo = { now: Date; fetchedAt: Date | null; offline: boolean };
+export type LiveInfo = { fetchedAt: Date | null; offline: boolean };
 
 export type ScreenProps = { view: MuralView; live: LiveInfo };
 
@@ -30,6 +31,23 @@ export function useNow(ms = 1000) {
     return () => clearInterval(t);
   }, [ms]);
   return now;
+}
+
+/** Reloj de la cabecera: se vuelve a dibujar solo él cada segundo, no todo el mural. */
+export function Clock({ style }: { style?: CSSProperties }) {
+  const now = useNow(1000);
+  return <div style={style}>{hhmm(now)}</div>;
+}
+
+/** Línea de "hoy" del calendario: avanza con la jornada sin repintar el resto (se actualiza cada minuto). */
+export function TodayLine({ col, atEnd, cols, left = 0 }: { col: number | null; atEnd: boolean; cols: number; left?: number }) {
+  const now = useNow(60000);
+  if (col === null) return null;
+  return (
+    <div style={{ position: "absolute", top: 0, bottom: 0, left, right: 0, pointerEvents: "none" }}>
+      <div style={{ position: "absolute", top: 0, bottom: 0, left: pct(col + (atEnd ? 1 : dayFraction(now)), cols), width: 2, marginLeft: -1, background: TODAY_COLOR }} />
+    </div>
+  );
 }
 
 /** Fracción de la jornada (7:00–17:00) transcurrida, para la línea de "hoy" del calendario. */
