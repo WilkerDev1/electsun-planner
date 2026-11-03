@@ -1,49 +1,45 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { RedeemResult } from "../../shared/contracts/access";
 import { api } from "../ui/api";
+import type { RedeemResult } from "../../shared/contracts/access";
 import { Sun } from "./ui";
 
-// /m/activar#<id>.<token>: canjea el enlace personal por la cookie del teléfono (ACC-04) y entra a /m.
+// /m/activar#<id>.<token>: canjea el enlace personal y abre /m (ACC-04).
 export default function Activar() {
   const navigate = useNavigate();
-  // El token se lee del fragmento al montar y se borra de la barra de direcciones (no queda en el historial).
   const [token] = useState(() => window.location.hash.replace(/^#/, ""));
-  const [failed, setFailed] = useState(token.length < 20);
+  const [failed, setFailed] = useState(false);
   const started = useRef(false);
 
   useEffect(() => {
-    if (window.location.hash) window.history.replaceState(null, "", window.location.pathname + window.location.search);
-    if (started.current || token.length < 20) return;
+    if (window.location.hash) window.history.replaceState(null, "", window.location.pathname);
+    if (started.current) return;
     started.current = true;
+    if (token.length < 20) return setFailed(true);
     api<RedeemResult>("/access/session", { body: { token } })
-      .then((r) => {
+      .then(() => {
         try {
-          // Otro empleado pudo usar antes este teléfono: se descartan sus datos guardados.
           localStorage.removeItem("movil");
         } catch {
           /* sin almacenamiento */
         }
-        navigate(r.kind === "mobile" ? "/m" : r.redirect, { replace: true });
+        navigate("/m", { replace: true });
       })
       .catch(() => setFailed(true));
-  }, [navigate, token]);
+  }, [token, navigate]);
 
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-4 p-6 text-center">
-      <Sun size={56} />
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-3 p-6 text-center">
+      <Sun size={48} />
       {failed ? (
         <>
-          <h1 className="m-0 text-[24px] font-extrabold">Este enlace no funciona</h1>
-          <p className="m-0 max-w-[320px] text-[17px] leading-relaxed text-muted">Pide uno nuevo en la oficina.</p>
+          <h1 className="m-0 text-[22px] font-extrabold">Este enlace no funciona</h1>
+          <p className="m-0 max-w-[320px] text-[16px] leading-relaxed text-muted">Pide uno nuevo en la oficina.</p>
         </>
       ) : (
-        <>
-          <h1 className="m-0 text-[24px] font-extrabold">Activando tu enlace…</h1>
-          <p className="m-0 text-[16px] text-muted" role="status">
-            Un momento.
-          </p>
-        </>
+        <p role="status" className="m-0 text-[17px] font-bold text-muted">
+          Activando tu acceso…
+        </p>
       )}
     </main>
   );

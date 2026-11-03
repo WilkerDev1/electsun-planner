@@ -12,13 +12,17 @@ export default defineConfig({
     VitePWA({
       injectRegister: null,
       registerType: "autoUpdate",
+      // Alcance del service worker (lo usa registerSW de src/movil). Sin barra final para que /m, la página de
+      // inicio de la PWA, también quede cubierta y abra sin conexión; el navigateFallbackAllowlist limita el
+      // atajo de navegación a /m y /m/*, así que las rutas de administración (/mural…) no se ven afectadas.
+      scope: "/m",
       manifest: {
         name: "Electsun Obras",
         short_name: "Obras",
         description: "Tus obras, tu equipo y el calendario de Electsun.",
         lang: "es-DO",
         start_url: "/m",
-        scope: "/m/",
+        scope: "/m",
         display: "standalone",
         background_color: "#F4F5F7",
         theme_color: "#F4F5F7",
