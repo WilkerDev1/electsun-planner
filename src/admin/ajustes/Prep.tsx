@@ -147,6 +147,7 @@ function PrepRow({
       <label className="flex flex-col gap-0.5 text-[11px] font-semibold text-muted">
         Código
         <input
+          aria-label={`Código de ${item.name}`}
           className={`${cell} w-16 font-bold uppercase`}
           value={code}
           maxLength={4}
@@ -162,6 +163,7 @@ function PrepRow({
       <label className="flex min-w-[160px] flex-[1_1_180px] flex-col gap-0.5 text-[11px] font-semibold text-muted">
         Nombre
         <input
+          aria-label={`Nombre de ${item.name}`}
           className={cell}
           value={name}
           maxLength={60}
@@ -177,6 +179,7 @@ function PrepRow({
       <label className="flex min-w-[130px] flex-[1_1_140px] flex-col gap-0.5 text-[11px] font-semibold text-muted">
         Motivo de espera
         <input
+          aria-label={`Motivo de espera de ${item.name}`}
           className={cell}
           value={label}
           maxLength={40}
@@ -191,7 +194,7 @@ function PrepRow({
       </label>
       <label className="flex flex-col gap-0.5 text-[11px] font-semibold text-muted">
         Aplica a
-        <select className={cell} value={item.applies_to} disabled={off} onChange={(e) => onSave({ applies_to: e.target.value as PrepAppliesTo })}>
+        <select aria-label={`Aplica a, ${item.name}`} className={cell} value={item.applies_to} disabled={off} onChange={(e) => onSave({ applies_to: e.target.value as PrepAppliesTo })}>
           {PREP_APPLIES.map((a) => (
             <option key={a} value={a}>{APPLIES_LABEL[a]}</option>
           ))}
