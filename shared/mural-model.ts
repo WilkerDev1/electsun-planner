@@ -169,7 +169,9 @@ export type MuralModel = {
   };
   waiting: { show: boolean; items: WaitingItem[]; more: number; nWait: number; nPause: number; text: string };
   meter: { items: MeterItem[] };
+  /** Avisos que caben en el mural (hasta NOTICES_MAX); `noticesMore` cuenta los que pasan del tope. */
   notices: NoticeLine[];
+  noticesMore: number;
   timeline: {
     weeks: number;
     cols: number;
@@ -252,6 +254,10 @@ const FALLBACK: Record<StatusKind, StatusStyle> = {
 
 /** Cuánto antes de hoy se cuentan los "próximos" en el indicador (MUR-02). */
 export const UPCOMING_DAYS = 14;
+/** Tope de "Por programar" en el mural: el resto se cuenta en `waiting.more`. Las tarjetas rotan por páginas. */
+export const WAITING_MAX = 30;
+/** Tope de avisos en el mural (AVI-03): los que caben van en marquesina o en páginas; el resto, en `noticesMore`. */
+export const NOTICES_MAX = 12;
 
 // ---------- Modelo ----------
 
@@ -428,7 +434,6 @@ export function muralModel(input: MuralInput, settings: MuralSettings, today: IS
       days: p.sale_date ? Math.max(0, diffDays(p.sale_date, today)) : null,
     };
   });
-  const WAITING_MAX = 6;
 
   // --- Esperando medidor (MUR-06)
   const meter: MeterItem[] = byKind("post_obra")
@@ -445,7 +450,7 @@ export function muralModel(input: MuralInput, settings: MuralSettings, today: IS
       };
     });
 
-  // --- Avisos (AVI-03): generales primero, luego observaciones por prioridad; como mucho 3
+  // --- Avisos (AVI-03): generales primero, luego observaciones por prioridad; como mucho NOTICES_MAX
   const general: NoticeLine[] = input.notices
     .filter((n) => n.starts_on <= today && today <= n.expires_on)
     .sort((a, b) => a.sort - b.sort || a.starts_on.localeCompare(b.starts_on) || a.text.localeCompare(b.text, "es"))
@@ -454,7 +459,8 @@ export function muralModel(input: MuralInput, settings: MuralSettings, today: IS
     .filter(observed)
     .sort((a, b) => Number(b.priority) - Number(a.priority) || dateOrder(a, b))
     .map((p) => ({ project: p.name, text: p.notes.trim(), general: false }));
-  const notices = [...general, ...observations].slice(0, 3);
+  const allNotices = [...general, ...observations];
+  const notices = allNotices.slice(0, NOTICES_MAX);
 
   // --- Timeline (MUR-08)
   const timelineRow = (p: Project): TimelineRow | null => {
@@ -549,6 +555,7 @@ export function muralModel(input: MuralInput, settings: MuralSettings, today: IS
     },
     meter: { items: meter },
     notices,
+    noticesMore: allNotices.length - notices.length,
     timeline: {
       weeks,
       cols,

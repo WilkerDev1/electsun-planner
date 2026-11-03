@@ -171,6 +171,18 @@ test("'Por programar' con el motivo de espera y los pausados (MUR-05, CAL-07)", 
   assert.ok(w.items.every((i) => i.sub !== "Espera "));
 });
 
+test("'Por programar': hasta 30 en el modelo y el resto en more (MUR-05)", () => {
+  const data = structuredClone(input);
+  const base = data.projects.find((p) => p.name === "Paola Núñez")!;
+  const extra = Array.from({ length: 35 }, (_, i) => ({ ...structuredClone(base), id: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`, name: `Espera ${i}` }));
+  data.projects = [...data.projects, ...extra];
+  const w = model({}, data).waiting;
+  assert.equal(w.items.length, 30);
+  // 6 de la demo más 35 nuevos son 41 en espera; caben 30 y el resto se cuenta.
+  assert.equal(w.more, 41 - 30);
+  assert.equal(w.nWait + w.nPause, 41);
+});
+
 test("Dulcería Mirabal en 'Esperando medidor' (MUR-06)", () => {
   const m = model();
   assert.equal(m.meter.items.length, 1);
@@ -179,7 +191,7 @@ test("Dulcería Mirabal en 'Esperando medidor' (MUR-06)", () => {
   assert.ok(!m.active.rows.some((r) => r.name === "Dulcería Mirabal" || r.name === "Panadería La Espiga"));
 });
 
-test("avisos: generales primero, caducados fuera, como mucho 3 (AVI-01..03)", () => {
+test("avisos: generales primero, caducados fuera, tope de 12 con el resto en noticesMore (AVI-01..03)", () => {
   const m = model();
   assert.deepEqual(
     m.notices.map((n) => [n.general, n.project, n.text]),
@@ -187,8 +199,19 @@ test("avisos: generales primero, caducados fuera, como mucho 3 (AVI-01..03)", ()
       [true, null, "Reunión de seguridad el sábado a las 8:00 en la oficina"],
       [true, null, "Usar arnés en todos los techos de más de 2 m"],
       [false, "Taller Motormax", "Faltan grapas; llegan mié 28 en la mañana"],
+      [false, "Carla Méndez", "Se instala primero la parte 1 (8 paneles)"],
+      [false, "Tomás Rivera", "Se instala primero la parte 1 (11 paneles)"],
     ],
   );
+  assert.equal(m.noticesMore, 0);
+
+  // Más de 12: se muestran los 12 primeros y el resto se cuenta.
+  const many = structuredClone(input);
+  many.notices = Array.from({ length: 15 }, (_, i) => ({ id: `n${i}`, text: `Aviso ${i}`, starts_on: "2026-10-01", expires_on: "2026-11-30", sort: i }));
+  const big = model({}, many);
+  assert.equal(big.notices.length, 12);
+  assert.equal(big.noticesMore, 15 + 3 - 12); // 15 generales (sin los de la demo) más 3 observaciones
+  assert.equal(big.notices[0].text, "Aviso 0");
 
   const data = structuredClone(input);
   const n = (text: string, starts_on: string, expires_on: string, sort: number): Notice => ({ id: text, text, starts_on, expires_on, sort });
@@ -199,7 +222,7 @@ test("avisos: generales primero, caducados fuera, como mucho 3 (AVI-01..03)", ()
     ...data.notices,
   ];
   const texts = model({}, data).notices.map((x) => x.text);
-  assert.equal(texts.length, 3);
+  assert.equal(texts.length, 6); // 3 generales (incluida "Hasta hoy") y 3 observaciones
   assert.ok(!texts.includes("Vencido ayer"));
   assert.ok(!texts.includes("Empieza mañana"));
   assert.equal(texts[0], "Reunión de seguridad el sábado a las 8:00 en la oficina"); // sort 0 antes que sort 1
