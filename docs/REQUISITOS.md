@@ -132,7 +132,7 @@ Referencia: `V4Proyectos.dc.html` (tabla y panel con `abierto`).
 | `priority` | bool | Solo admin |
 | `part` | texto ≤ 40 | "Parte 1" |
 | `system_type` | `neta` \| `hibrido` | Tipo de sistema |
-| `prep_plans`, `prep_materials`, `prep_ede` | bool | Preparación. `prep_ede` solo aplica a `neta` |
+| `prep` | lista `{ item_id, done }` | Parámetros de preparación que lleva el proyecto y si están hechos (PRY-12). Puede ser vacía; se reemplaza completa en POST y PATCH |
 | `archived` | bool | Oculta el proyecto de todas las vistas |
 | `version` | entero | Control de concurrencia optimista |
 
@@ -154,7 +154,15 @@ Referencia: `V4Proyectos.dc.html` (tabla y panel con `abierto`).
 
 **PRY-10 [M]** Archivar y desarchivar desde el panel (con confirmación). No hay borrado.
 
+**PRY-10b [M]** Archivar en bloque: `POST /api/projects/archive-bulk` con `{ ids (1–200), archived }`. Una sola transacción, historial por proyecto (`project.archive` / `project.unarchive`) y un solo `publishChange`. Responde `{ projects, changed }` (los proyectos pedidos, en su orden y ya actualizados; `changed` cuenta los que de verdad cambiaron). Si algún id no existe, 404 y no se cambia ninguno. Listado: `GET /api/projects` devuelve los activos; `?archived=1`, todos; `?archived=only`, solo los archivados.
+
 **PRY-11 [M]** Si otra persona guardó antes (versión distinta) el servidor responde 409 y la UI recarga la fila y avisa "Otra persona cambió este proyecto".
+
+**PRY-12 [M]** Preparación como **catálogo editable** (`prep_items`: `code` 1–4 letras o números en mayúsculas y único, `name` 1–60, `pending_label` 1–40, `applies_to` `todos` \| `neta` \| `hibrido`, `default_on`, `sort`, `version`). Vienen de serie PL «Planos y BOM» (`planos`), MA «Materiales completos» (`material`) y EDE «Carta de no objeción» (`EDE`, solo `neta`). `pending_label` es el motivo de espera que ven el mural y el móvil («planos», «espera permiso»; si empieza por «espera», «falta» o «faltan» se quita para unir varios tras un solo «Espera»).
+- `GET /api/prep-items` lo lee cualquier cuenta y trae `project_count` (proyectos que lo tienen, archivados incluidos). `POST`, `PATCH /:id` y `DELETE /:id` solo el administrador, con `version` (en el `DELETE` va en el cuerpo), historial (`prep_item.create|update|delete`) y `publishChange`. Máximo 30 parámetros; nombre sin repetir (sin importar mayúsculas) y código único.
+- Quitar un parámetro lo quita de los proyectos que lo tenían (cascada): cada uno sube de `version` y recibe una entrada de historial.
+- En cada proyecto la preparación es **opcional**: `project_prep` guarda solo los parámetros elegidos y si están hechos. Un proyecto nuevo sin `prep` explícito recibe los parámetros con `default_on`, sin hacer.
+- El historial de un proyecto guarda `prep` por código: `{ "PL": true, "MA": false }`, antes y después.
 
 ### 4.2 Estados (EST)
 
@@ -173,7 +181,13 @@ Referencia: `V4Proyectos.dc.html` (tabla y panel con `abierto`).
 
 **EST-03 [M]** Colores por defecto: los de la tabla `ST` de V4Proyectos (Por programar `#3F4859/#EFF1F5/#8B95A7`, Programado `#3538CD/#EEF0FE/#6172F3`, En obra `#095C4F/#E0F4EF/#0B7A68`, En pausa `#A11C47/#FDECF1/#D63B6A`, Terminado `#1F2A3D/#E8ECF2/#2B3A55`, Esperando medidor `#155E75/#E3F1F5/#0E7490`).
 
-**EST-04 [D]** Pantalla para renombrar, reordenar y recolorear estados (dentro de Mural · Configuración). No se puede borrar un estado en uso ni dejar un tipo sin estado.
+**EST-04 [D]** Pantalla para renombrar, reordenar, recolorear, crear y borrar estados (dentro de Mural · Configuración y en Ajustes). Solo el administrador. No se admiten dos estados con el mismo nombre, sin importar mayúsculas.
+
+**EST-05 [M]** Borrar un estado: `DELETE /api/statuses/:id` con `{ version, replacement_id? }`, solo el administrador.
+- `GET /api/statuses` trae `project_count` por estado, con los proyectos archivados incluidos.
+- Si algún proyecto lo usa, `replacement_id` es obligatorio (422 con cuántos proyectos lo usan). Los proyectos pasan al estado de reemplazo en la misma transacción, cada uno con su historial (`project.update`) y `version + 1`; el fin real y la regla de fechas siguen a EST-02 y VAL-01. Si el reemplazo es de otro tipo y a algún proyecto le faltan datos que ese estado exige (fechas, equipo, motivo), 422 con los nombres y no se cambia nada.
+- No se puede borrar el último estado de su tipo (409). El estado de reemplazo no puede ser el mismo.
+- Responde `{ deleted_id, moved_projects }`, audita `status.delete` y llama a `publishChange("status")` (y `"project"` si se movieron proyectos).
 
 ### 4.3 Validaciones (VAL)
 
@@ -187,11 +201,11 @@ Todas viven en `shared/domain.ts` y las usan servidor y cliente.
 | **VAL-04 [M]** | Inicio anterior a la fecha de venta | Aviso |
 | **VAL-05 [M]** | `NA`, `N/A`, `n/a`, `-` y vacío en fechas se guardan como `null` | Normalización |
 | **VAL-06 [M]** | Choque de equipo: el mismo equipo en otro proyecto no archivado, de tipo que ocupa al equipo, con rangos `[inicio, fin]` que se solapan | Aviso con el nombre del otro proyecto |
-| **VAL-07 [M]** | Programado o En obra con preparación incompleta | Aviso "Programado con preparación pendiente: falta …" |
+| **VAL-07 [M]** | Programado o En obra con algún parámetro de preparación pendiente (PRY-12): elegido para el proyecto, que aplica a su tipo y sin hacer | Aviso "Programado con preparación pendiente: falta …" con los `pending_label`. Avisa, no bloquea |
 | **VAL-08 [M]** | En obra con hoy después del fin previsto | Aviso de atraso (CAL-06) |
-| **VAL-09 [M]** | `prep_ede` se ignora si `system_type = hibrido` | Normalización |
+| **VAL-09 [M]** | Un parámetro de preparación cuyo `applies_to` no es el tipo del proyecto no aplica: no cuenta como pendiente y la interfaz lo muestra apagado | Regla de cálculo (no se borra nada al cambiar de tipo) |
 
-**VAL-10 [M]** Los avisos nunca bloquean el guardado; los errores sí. La respuesta del servidor incluye `warnings: string[]` con los avisos calculados.
+**VAL-10 [M]** Los avisos nunca bloquean el guardado; los errores sí. La respuesta del servidor incluye `warnings: string[]` con los avisos calculados y `coded_warnings: { code, text }[]` con los mismos avisos y un código estable (`inicio_antes_venta`, `choque_equipo`, `prep_pendiente`, `atrasada`).
 
 ### 4.4 Importar y exportar Excel (XLS)
 
@@ -203,7 +217,9 @@ Todas viven en `shared/domain.ts` y las usan servidor y cliente.
 
 **XLS-04 [M]** Normalización: fechas de Excel (serial o texto `d/m/aaaa`), VAL-05, kWp con coma decimal, estado por nombre sin tildes (desconocido → error de fila), empresa y equipo por nombre o código (desconocido → error de fila).
 
-**XLS-05 [M]** Exportar `GET /api/projects/export` a `.xlsx` con las columnas de XLS-01 más Tipo, Preparación, Días, Fin real, Prioridad y Parte, respetando el filtro activo.
+**XLS-05 [M]** Exportar `GET /api/projects/export` a `.xlsx` con las columnas de XLS-01 más Tipo, Preparación (resumen), Días, Fin real, Prioridad y Parte, y después **una columna por cada parámetro del catálogo** de preparación con su nombre: «Sí», «No» o vacío si el proyecto no lo lleva. Respeta el filtro activo.
+
+**XLS-07 [M]** Al importar, las columnas de preparación se reconocen por el nombre o por el código del parámetro, y también por las cabeceras antiguas (Planos / Planos y BOM, Materiales / Material / Materiales completos, EDE / Carta de no objeción). «Sí», «x», «1», «hecho», «listo» = hecho; «No», «0», «pendiente», «falta» = pendiente; «N/A» o «-» = el proyecto no lleva ese parámetro; celda vacía = sin cambios. Un proyecto nuevo recibe los parámetros `default_on` y después lo que diga el archivo. Un valor que no se entiende es error de fila.
 
 **XLS-06 [M]** El servidor no guarda el archivo subido; lo procesa en memoria.
 
@@ -219,7 +235,16 @@ Referencia: `V4EquipoTablas.dc.html` (pestañas Empleados, Equipos de obra, Empr
 
 **EQP-04 [M]** Un empleado pertenece como mucho a un equipo. Asignar un integrante desde el equipo cambia su `team_id`.
 
-**EQP-05 [M]** **Empresas**: nombre único, sigla de 2 letras única, color. Aviso si el color está a menos de 60 de distancia RGB del naranja de la marca `#EA6A1F` o de otra empresa.
+**EQP-05 [M]** **Empresas**: nombre único, sigla de 2 letras única, color y patrón (EQP-08). Aviso si el color está a menos de 60 de distancia RGB del naranja de la marca `#EA6A1F` o de otra empresa.
+
+**EQP-07 [M]** **Logotipo** de empresa, que sustituye al monograma en el mural, la tabla, el móvil y el resto de pantallas (`src/ui/CompanyMark.tsx`; con `alt` igual al nombre y, si la imagen falla, vuelve al monograma). Se guarda en `company_logos`.
+- `PUT /api/companies/:id/logo` (administración u oficina): el cuerpo es la imagen tal cual (`express.raw`, máximo 300 KB; no multipart, porque es un solo archivo y no hay campos). Se aceptan solo PNG, JPEG y WebP, reconocidos por sus **bytes** (no por extensión ni `Content-Type`); **no se admite SVG**. Máximo 2048 px de lado, leído de la cabecera. Errores: 422 (tipo, tamaño en píxeles, vacío), 413 (más de 300 KB). Responde la empresa.
+- `DELETE /api/companies/:id/logo` lo quita.
+- `GET /api/companies/:id/logo`: lo lee cualquier credencial válida (cuenta, TV o móvil); 401 sin credencial, 404 si no hay logotipo. Cabeceras: `Content-Type` de la imagen, `X-Content-Type-Options: nosniff`, `Content-Disposition: inline`, `Content-Security-Policy: default-src 'none'`, `ETag` con el SHA-256 y, si la URL lleva `?v=`, `Cache-Control: private, max-age=31536000, immutable` (si no, `private, no-cache`).
+- `Company`, `/api/view/mural` y `/api/view/movil` llevan `logo_url: string | null` (`/api/companies/:id/logo?v=<hash corto>`). El service worker lo guarda con `StaleWhileRevalidate` (máximo 50 entradas).
+- El cambio de logotipo se audita (`company.logo`) pero no sube la `version` de la empresa.
+
+**EQP-08 [M]** **Patrón** del color de empresa, de un catálogo cerrado: `solido` (por defecto), `rayas`, `rayas_finas`, `puntos`, `cuadricula`, `zigzag` y `diagonal_cruzada` (`companies.pattern`). `shared/pattern.ts` ofrece `patternStyle({ color, pattern }, scale?)`, que devuelve `backgroundColor`, `backgroundImage` (gradientes repetidos), `backgroundSize`, `backgroundPosition`, `patternColor` (un tono más claro u oscuro del mismo color) y `textColor` (blanco o negro, con contraste AA contra el color y contra el dibujo), y `PATTERN_LABELS` con las etiquetas en español.
 
 **EQP-06 [M]** No se puede desactivar un equipo ni borrar una empresa con proyectos no archivados; se ofrece desactivar. Un equipo inactivo no admite obras nuevas (tabla, panel e importación); la obra que ya lo tenía lo conserva.
 
@@ -315,7 +340,7 @@ Viven en `shared/domain.ts`, sin dependencias, con pruebas unitarias. Fechas com
 
 **CAL-06 [M]** `lateDays(p, hoy)` = `countWorkdays(fin + 1, hoy)` si el tipo es `en_obra` y `fin < hoy`; si no, 0. Texto "Atrasada · +N días".
 
-**CAL-07 [M]** `missingPrep(p)` → lista de `planos`, `material`, `EDE` (solo `neta`). `waitReason(p)` = "Espera planos y material", o "Lista para programar".
+**CAL-07 [M]** `missingPrep(p, catálogo)` → los `pending_label` de los parámetros que el proyecto lleva, aplican a su tipo y no están hechos. `waitReason(p, catálogo)` = "Espera planos y material", o "Lista para programar" (también si el proyecto no lleva ninguno). `prepRows(p, catálogo)` da una fila por parámetro (`selected`, `done`, `applies`, `pending`) para las pantallas.
 
 **CAL-08 [M]** `muralModel(datos, config, hoy)` produce el modelo completo del mural (indicadores, activos, calendario, por programar, medidor, avisos). Lo usan `/api/view/mural`, la vista previa de Configuración y las pruebas.
 
@@ -332,11 +357,14 @@ PostgreSQL 16, sin PostGIS. Ids `uuid`. Fechas de obra como `date` (el parser 10
 | `users` | `id, name, email unique, password_hash, role (admin\|office), active` |
 | `sessions` | `hash pk, user_id, expires_at` |
 | `invitations` | `hash pk, user_id, kind (invite\|reset), expires_at, used_at` |
-| `companies` | `id, name unique, code char(2) unique, color, active` |
+| `companies` | `id, name unique, code char(2) unique, color, pattern, active` |
+| `company_logos` | `company_id pk (cascada), mime, data bytea (≤ 300 KB), sha256, updated_at` |
 | `teams` | `id, code unique, name, lead_employee_id, color, active` |
 | `employees` | `id, name, job, level, team_id, state, phone, active` |
 | `statuses` | `id, name unique, kind, sort, fg, bg, dot, requires_schedule, requires_reason` |
-| `projects` | Campos de PRY-01 |
+| `projects` | Campos de PRY-01 (`prep` vive en `project_prep`) |
+| `prep_items` | `id, code unique, name, pending_label, applies_to, default_on, sort, version` |
+| `project_prep` | `project_id, item_id (cascada), done` · clave `(project_id, item_id)` |
 | `notices` | `id, text, starts_on, expires_on, sort, created_by` |
 | `mural_settings` | Fila única `id=1`: `design, weeks, upcoming_order, show_waiting, show_notes, show_priority, show_clock, show_kwp` |
 | `access_links` | `id, kind (tv\|mobile), name, employee_id, active, token_hash, last_seen_at, created_by` |
@@ -357,10 +385,12 @@ JSON bajo `/api`. Esquemas `zod` en `shared/contracts/*.ts`, compartidos con el 
 | `GET/POST /api/accounts`, `PATCH /api/accounts/:id`, `POST /api/accounts/:id/reset` | AUT-03..08 |
 | `GET/POST /api/access-links`, `POST /:id/rotate`, `POST /:id/revoke` | ACC |
 | `POST /api/access/session` (canje) | ACC-04 |
-| `GET/POST /api/projects`, `GET/PATCH /api/projects/:id`, `GET /:id/history` | PRY, VAL, HIS |
+| `GET/POST /api/projects`, `GET/PATCH /api/projects/:id`, `GET /:id/history`, `POST /:id/archive`, `POST /:id/unarchive`, `POST /archive-bulk` | PRY, VAL, HIS |
 | `POST /api/projects/import?dry=1`, `GET /api/projects/export` | XLS |
-| `GET/POST/PATCH /api/statuses` | EST |
+| `GET/POST/PATCH/DELETE /api/statuses` | EST |
+| `GET/POST/PATCH/DELETE /api/prep-items` | PRY-12, CAL-07 |
 | `GET/POST/PATCH /api/employees`, `/api/teams`, `/api/companies` | EQP |
+| `PUT/DELETE/GET /api/companies/:id/logo` | EQP-07 |
 | `GET/POST/PATCH/DELETE /api/notices` | AVI |
 | `GET/PUT /api/mural/settings` | MUR-09 |
 | `GET /api/view/mural?link=:id` | MUR, CAL-08 |
