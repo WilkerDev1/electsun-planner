@@ -8,6 +8,7 @@
 | F1 · Gestión (A Cuentas, B Proyectos, C Equipo) | hecha | 3 subagentes Sonnet en paralelo, integrados en `main` |
 | F2 · Murales (D Mural TV, E Móvil) | hecha | 2 subagentes Sonnet en paralelo, integrados en `main` |
 | F3 · Integración y calidad | hecha | Revisión con subagente Haiku (agy sin cuota/bloqueado), correcciones, E2E Playwright, verificación visual, etiqueta `v0.1-demo` |
+| Calidad y seguridad v0.2 | hecha | Auditorías con Sonnet 5.5 (`docs/revisiones/seguridad-v0.1.md`, `calidad-v0.1.md`), 4 subagentes Sonnet corrigiendo en paralelo, confirmación aprobada (`confirmacion-v0.2.md`), etiqueta `v0.2-demo` |
 | F4 · Despliegue | solo con confirmación | |
 
 

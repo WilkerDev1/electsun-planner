@@ -22,8 +22,8 @@
 	# `route` respeta el orden escrito: sondas, luego el filtro de Cloudflare, luego la API.
 	route {
 		# Las sondas de salud solo las usa Docker, directo al contenedor.
-		respond /healthz 404
-		respond /readyz 404
+		respond /healthz* 404
+		respond /readyz* 404
 		respond @sin_ip_cf "Acceso no permitido." 403
 		reverse_proxy @cf planner-api:8080 {
 			# SSE del mural y del móvil: sin búfer.

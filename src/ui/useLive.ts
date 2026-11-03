@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api, ApiError } from "./api";
 
 type LiveState<T> = { data: T | null; error: ApiError | null; fetchedAt: Date | null; offline: boolean; revoked: boolean };
@@ -62,7 +62,9 @@ export function useLive<T>(path: string, cacheKey: string, eventsQuery = "") {
       if (dirty.current) void latest.current();
     }
   }, [path, cacheKey]);
-  latest.current = load;
+  useLayoutEffect(() => {
+    latest.current = load;
+  }, [load]);
 
   useEffect(() => {
     void load();
