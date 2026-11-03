@@ -48,6 +48,13 @@ export function Floating({ anchor, onClose, role, label, width = 240, children }
         const at = items.indexOf(document.activeElement as HTMLElement);
         items[(at + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
       } else if (e.key === "Tab" && role === "menu") close(false);
+      else if (e.key === "Tab") {
+        // Un diálogo flotante se cierra cuando el foco sale de él (Tab o Mayús+Tab).
+        setTimeout(() => {
+          const now = document.activeElement;
+          if (now && !ref.current?.contains(now) && !el?.contains(now)) closeRef.current();
+        }, 0);
+      }
     };
     const onDown = (e: MouseEvent) => {
       const t = e.target as Node;

@@ -96,9 +96,10 @@ export default function Proyectos() {
   const archiveIds = useCallback(
     async (ids: string[], text: string) => {
       const changed = await archiveMany(ids, true);
-      if (changed === null) return;
+      if (changed === null) return false;
       setChecked(new Set());
       setUndo({ ids, text });
+      return true;
     },
     [archiveMany],
   );
@@ -111,6 +112,11 @@ export default function Proyectos() {
       flash(text);
     },
     [archiveMany, flash],
+  );
+  // El panel archiva igual que la tabla (con «Deshacer») y espera a su guardado en vuelo.
+  const archivePanel = useCallback(
+    (id: string, archived: boolean) => (archived ? archiveIds([id], "Proyecto archivado") : store.setArchived(id, false)),
+    [archiveIds, store.setArchived],
   );
   const archiveOne = useCallback((p: Project) => void archiveIds([p.id], "Proyecto archivado"), [archiveIds]);
   const restoreOne = useCallback((p: Project) => void restoreIds([p.id], "Proyecto restaurado"), [restoreIds]);
@@ -230,7 +236,7 @@ export default function Proyectos() {
             <div className="flex flex-wrap items-center gap-3">
               <label className="flex h-9 w-60 max-w-full items-center gap-2 rounded-lg border border-line bg-white px-2.5 focus-within:border-brand">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#667085" strokeWidth="2" strokeLinecap="round" aria-hidden><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
-                <input type="search" aria-label="Buscar proyecto" placeholder="Buscar proyecto o lugar…" value={query} onChange={(e) => setQuery(e.target.value)} className="min-w-0 flex-1 border-0 bg-transparent text-sm outline-none" />
+                <input type="search" aria-label="Buscar proyecto" placeholder="Buscar proyecto o lugar…" value={query} onChange={(e) => { setQuery(e.target.value); setChecked(new Set()); }} className="min-w-0 flex-1 border-0 bg-transparent text-sm outline-none" />
               </label>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -291,7 +297,7 @@ export default function Proyectos() {
               focusName={!!state.isNew}
               onPatch={patch}
               onClose={close}
-              onArchive={store.setArchived}
+              onArchive={archivePanel}
             />
           </div>
         )}

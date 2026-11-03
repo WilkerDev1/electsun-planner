@@ -24,7 +24,10 @@ export async function resizeLogo(file: File): Promise<Blob> {
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Este navegador no puede preparar la imagen.");
+  if (!ctx) {
+    bitmap.close();
+    throw new Error("Este navegador no puede preparar la imagen.");
+  }
   ctx.drawImage(bitmap, 0, 0, w, h);
   bitmap.close();
   let out = await toBlob(canvas, "image/png");
@@ -43,6 +46,7 @@ export async function uploadLogo(companyId: string, blob: Blob): Promise<void> {
     credentials: "same-origin",
   });
   if (r.ok) return;
+  if (r.status === 401) window.dispatchEvent(new Event("planner:unauthorized"));
   let text = "No se pudo subir el logotipo. Intenta de nuevo.";
   try {
     const data = (await r.json()) as { message?: string };

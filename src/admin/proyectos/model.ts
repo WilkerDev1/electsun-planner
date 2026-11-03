@@ -223,3 +223,18 @@ export const staleFinished = (rows: Project[], today: string): Project[] => {
     return !p.archived && p.status_kind === "terminado" && !!end && end < cutoff;
   });
 };
+
+/** Máximo de ids que acepta el archivado en bloque del servidor (ArchiveBulk). */
+export const ARCHIVE_BULK_MAX = 200;
+
+/** Trocea una lista en lotes de tamaño fijo (PRY-10b: el archivado en bloque admite hasta 200 a la vez). */
+export function chunk<T>(list: readonly T[], size: number = ARCHIVE_BULK_MAX): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
+  return out;
+}
+
+/** Una respuesta del servidor es antigua si ya se confirmó una versión posterior de la misma fila (PRY-11). */
+export function isStaleResponse(confirmedVersion: number | undefined, responseVersion: number): boolean {
+  return confirmedVersion !== undefined && confirmedVersion > responseVersion;
+}

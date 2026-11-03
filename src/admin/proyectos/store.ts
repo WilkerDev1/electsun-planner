@@ -5,7 +5,7 @@ import type { Status } from "../../../shared/contracts/statuses";
 import type { Company, Employee, Team } from "../../../shared/contracts/equipo";
 import type { PrepItem } from "../../../shared/contracts/prep";
 import { mergeProject } from "../../../shared/domain";
-import type { Catalogs, EditPatch } from "./model";
+import { chunk, isStaleResponse, type Catalogs, type EditPatch } from "./model";
 
 // Datos de la pantalla Proyectos con guardado automático optimista (PRY-03, PRY-11).
 // Cada cambio se aplica al instante en la tabla y se envía en segundo plano; los cambios seguidos sobre un mismo
@@ -110,6 +110,8 @@ export function useProjects(today: string, notify: (message: string, tone?: "ok"
             const saved = await api<SavedProject>(`/projects/${id}`, { method: "PATCH", body: { ...body, version: base.version } });
             lastActivity.current = Date.now();
             const project = strip(saved);
+            // Una respuesta antigua no pisa un estado más nuevo (por ejemplo, un archivado ya aplicado).
+            if (isStaleResponse(confirmed.current.get(id)?.version, project.version)) continue;
             confirmed.current.set(id, project);
             setServerWarnings({ [id]: saved.warnings ?? [] });
             setLastError(null);
@@ -141,6 +143,14 @@ export function useProjects(today: string, notify: (message: string, tone?: "ok"
     },
     [refreshRow],
   );
+
+  /** Espera a que termine el guardado en vuelo de estas filas, para usar su versión ya confirmada. */
+  const waitIdle = useCallback(async (ids: string[]) => {
+    const limit = Date.now() + 10000;
+    while (Date.now() < limit && ids.some((id) => queues.current.get(id)?.busy || queues.current.get(id)?.pending)) {
+      await new Promise((r) => setTimeout(r, 25));
+    }
+  }, []);
 
   /** Aplica el cambio ya y lo guarda en segundo plano. */
   const patch = useCallback(
@@ -182,6 +192,7 @@ export function useProjects(today: string, notify: (message: string, tone?: "ok"
 
   const setArchived = useCallback(
     async (id: string, archived: boolean) => {
+      await waitIdle([id]);
       const base = confirmed.current.get(id);
       try {
         lastActivity.current = Date.now();
@@ -199,25 +210,36 @@ export function useProjects(today: string, notify: (message: string, tone?: "ok"
         return false;
       }
     },
-    [refreshRow],
+    [refreshRow, waitIdle],
   );
 
   /** Archiva o restaura varios proyectos de una vez (PRY-10b). Devuelve cuántos cambiaron, o null si falló. */
   const archiveMany = useCallback(async (ids: string[], archived: boolean): Promise<number | null> => {
-    try {
-      lastActivity.current = Date.now();
-      const out = await api<ArchiveBulkResult>("/projects/archive-bulk", { body: { ids, archived } });
-      lastActivity.current = Date.now();
-      const byId = new Map(out.projects.map((p) => [p.id, strip(p)]));
-      for (const [id, p] of byId) confirmed.current.set(id, p);
-      setRows((prev) => (prev ? prev.map((r) => byId.get(r.id) ?? r) : prev));
-      return out.changed;
-    } catch (e) {
-      notifyRef.current(e instanceof ApiError ? e.message : "No se pudo completar la acción.", "danger");
-      await loadProjects().catch(() => undefined);
-      return null;
+    await waitIdle(ids);
+    let changed = 0;
+    let failed: string | null = null;
+    // El servidor admite hasta 200 ids por llamada: se trocea y se avisa si algún lote falla.
+    for (const batch of chunk(ids)) {
+      try {
+        lastActivity.current = Date.now();
+        const out = await api<ArchiveBulkResult>("/projects/archive-bulk", { body: { ids: batch, archived } });
+        lastActivity.current = Date.now();
+        const byId = new Map(out.projects.map((p) => [p.id, strip(p)]));
+        for (const [id, p] of byId) confirmed.current.set(id, p);
+        setRows((prev) => (prev ? prev.map((r) => byId.get(r.id) ?? r) : prev));
+        changed += out.changed;
+      } catch (e) {
+        failed = e instanceof ApiError ? e.message : "No se pudo completar la acción.";
+        break;
+      }
     }
-  }, [loadProjects]);
+    if (failed !== null) {
+      notifyRef.current(changed > 0 ? `${failed} Se completaron ${changed} de ${ids.length}.` : failed, "danger");
+      await loadProjects().catch(() => undefined);
+      return changed > 0 ? changed : null;
+    }
+    return changed;
+  }, [loadProjects, waitIdle]);
 
   return {
     rows,

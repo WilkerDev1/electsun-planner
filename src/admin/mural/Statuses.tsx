@@ -31,6 +31,8 @@ export function StatusesCard({ canEdit, flash }: { canEdit: boolean; flash: (tex
   const [items, setItems] = useState<Status[] | null>(null);
   const [loadError, setLoadError] = useState("");
   const [busy, setBusy] = useState(false);
+  // Sube al fallar un guardado: remonta las filas para que el campo vuelva al valor guardado.
+  const [resets, setResets] = useState(0);
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<Status | null>(null);
 
@@ -53,6 +55,7 @@ export function StatusesCard({ canEdit, flash }: { canEdit: boolean; flash: (tex
       flash("Estado guardado");
     } catch (e) {
       // 409: otra persona lo cambió antes; se recarga lo vigente.
+      setResets((n) => n + 1);
       await load();
       flash(message(e), "danger");
     }
@@ -92,7 +95,7 @@ export function StatusesCard({ canEdit, flash }: { canEdit: boolean; flash: (tex
       <ul className="m-0 flex list-none flex-col gap-2 p-0">
         {items?.map((s, i) => (
           <StatusRow
-            key={`${s.id}-${s.version}`}
+            key={`${s.id}-${s.version}-${resets}`}
             s={s}
             first={i === 0}
             last={i === items.length - 1}

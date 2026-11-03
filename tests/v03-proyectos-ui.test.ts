@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { avisoOpenByDefault, avisoShort, parseAvisos, readAvisoPref, saveAvisoPref, sortedPrep, staleFinished, withPrepItem, AVISO_SEP } from "../src/admin/proyectos/model";
+import { ARCHIVE_BULK_MAX, chunk, isStaleResponse, avisoOpenByDefault, avisoShort, parseAvisos, readAvisoPref, saveAvisoPref, sortedPrep, staleFinished, withPrepItem, AVISO_SEP } from "../src/admin/proyectos/model";
 import type { Project } from "../shared/contracts/projects";
 
 // Lógica de la pantalla Proyectos de la v0.3: avisos plegables (VAL-10), preparación opcional (PRY-12) y archivado (PRY-10).
@@ -53,4 +53,19 @@ test("PRY-10: sugiere archivar solo los terminados con más de 30 días", () => 
     proj({ id: "sinfecha" }),
   ];
   assert.deepEqual(staleFinished(rows, "2026-10-27").map((p) => p.id), ["viejo", "previsto"]);
+});
+
+test("PRY-10b: el archivado en bloque se trocea en lotes de 200 y no pierde ids", () => {
+  const ids = Array.from({ length: 451 }, (_, i) => `p${i}`);
+  const lotes = chunk(ids);
+  assert.deepEqual(lotes.map((l) => l.length), [ARCHIVE_BULK_MAX, ARCHIVE_BULK_MAX, 51]);
+  assert.deepEqual(lotes.flat(), ids);
+  assert.deepEqual(chunk([]), []);
+});
+
+test("PRY-11: una respuesta con versión menor que la confirmada se descarta", () => {
+  assert.equal(isStaleResponse(5, 4), true);
+  assert.equal(isStaleResponse(5, 5), false);
+  assert.equal(isStaleResponse(5, 6), false);
+  assert.equal(isStaleResponse(undefined, 1), false);
 });

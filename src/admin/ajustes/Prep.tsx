@@ -16,6 +16,8 @@ export function PrepCatalogCard({ canEdit, flash }: { canEdit: boolean; flash: F
   const [items, setItems] = useState<PrepItem[] | null>(null);
   const [loadError, setLoadError] = useState("");
   const [busy, setBusy] = useState(false);
+  // Sube al fallar un guardado: remonta las filas para que el campo vuelva al valor guardado.
+  const [resets, setResets] = useState(0);
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<PrepItem | null>(null);
 
@@ -37,6 +39,7 @@ export function PrepCatalogCard({ canEdit, flash }: { canEdit: boolean; flash: F
       await api(`/prep-items/${item.id}`, { method: "PATCH", body: { version: item.version, ...patch } });
       flash("Guardado");
     } catch (e) {
+      setResets((n) => n + 1);
       flash(message(e), "danger");
     } finally {
       await load();
@@ -79,7 +82,7 @@ export function PrepCatalogCard({ canEdit, flash }: { canEdit: boolean; flash: F
       <ul className="m-0 flex list-none flex-col gap-2 p-0">
         {items?.map((it, i) => (
           <PrepRow
-            key={`${it.id}-${it.version}`}
+            key={`${it.id}-${it.version}-${resets}`}
             item={it}
             first={i === 0}
             last={i === items.length - 1}

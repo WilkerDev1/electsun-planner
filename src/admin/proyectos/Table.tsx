@@ -345,7 +345,7 @@ export const Row = memo(function Row({ p, index, selected, checked, warn, today,
             <button
               type="button"
               aria-expanded={avisoOpen}
-              aria-controls={panelId}
+              aria-controls={avisoOpen ? panelId : undefined}
               aria-label={`${triggerText} · ${p.name}`}
               title={avisoOpen ? "Ocultar los avisos" : "Ver los avisos"}
               onClick={toggleAviso}
