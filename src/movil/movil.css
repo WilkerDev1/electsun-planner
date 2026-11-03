@@ -1,0 +1,28 @@
+/* Estilos propios del móvil (V4Movil): solo lo que Tailwind no cubre. */
+.movil-pulse {
+  animation: movil-pulse 2s ease-out infinite;
+}
+@keyframes movil-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.45);
+  }
+  100% {
+    box-shadow: 0 0 0 8px rgba(22, 163, 74, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .movil-pulse {
+    animation: none;
+  }
+}
+.movil-noscrollbar {
+  scrollbar-width: none;
+}
+.movil-noscrollbar::-webkit-scrollbar {
+  display: none;
+}
+/* Tapa el avance horizontal accidental en el resto de pantallas. */
+.movil-root {
+  overflow-x: clip;
+  -webkit-text-size-adjust: 100%;
+}
