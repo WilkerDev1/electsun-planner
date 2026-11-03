@@ -4,10 +4,10 @@
 
 | Fase | Estado | Notas |
 |---|---|---|
-| F0 · Base | en curso | Lienzo actualizado (versión 23), requisitos escritos |
-| F1 · Gestión (A Cuentas, B Proyectos, C Equipo) | pendiente | |
-| F2 · Murales (D Mural TV, E Móvil) | pendiente | |
-| F3 · Integración y calidad | pendiente | |
+| F0 · Base | hecha | Requisitos, esquema, dominio, contratos, auth y SSE portados de Monitor, demo ficticia, Docker y CI |
+| F1 · Gestión (A Cuentas, B Proyectos, C Equipo) | hecha | 3 subagentes Sonnet en paralelo, integrados en `main` |
+| F2 · Murales (D Mural TV, E Móvil) | hecha | 2 subagentes Sonnet en paralelo, integrados en `main` |
+| F3 · Integración y calidad | hecha | Revisión con subagente Haiku (agy sin cuota/bloqueado), correcciones, E2E Playwright, verificación visual, etiqueta `v0.1-demo` |
 | F4 · Despliegue | solo con confirmación | |
 
 
@@ -267,7 +267,11 @@ Mientras D termina el SSE, E trabaja contra el contrato con datos del seed. Las 
 5. Detener Monitor con `docker compose down`, sin `-v`.
 6. Importar el Excel real solo en el servidor.
 
-## Protocolo de revisión con `agy`
+## Protocolo de revisión
+
+Nota de ejecución: `agy -p` tardaba ~4,5 min en arrancar y agotó la cuota de Sonnet, así que las revisiones de F0–F2 se hicieron con un subagente Claude Haiku 5.5 (esfuerzo medio) en solo lectura: `docs/revisiones/F0-F2.md` y su confirmación. El protocolo original con `agy` queda abajo para fases futuras.
+
+### Original con `agy`
 
 Desde la raíz del repo o del worktree, en modo solo lectura:
 

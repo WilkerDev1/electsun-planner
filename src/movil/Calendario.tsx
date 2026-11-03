@@ -92,11 +92,12 @@ function Bar({ bar, nextFree }: { bar: TimelineBar; nextFree: number }) {
         to={jobLink(bar.id)}
         state={fromState("Calendario")}
         aria-label={`${bar.name}, ${bar.dates_text}${bar.overrun ? ", atrasada" : ""}`}
-        className="absolute top-[5px] flex h-[30px] items-center overflow-hidden border-[1.5px] p-0 text-ink no-underline"
+        className="absolute top-[5px] flex h-[30px] items-center overflow-clip border-[1.5px] p-0 text-ink no-underline"
         style={{ left, width, borderColor: color, borderRadius: radius, background: bar.kind === "en_obra" ? "#DCF3E5" : "#E9EDFF" }}
       >
         <span aria-hidden className="absolute inset-y-0 left-0" style={{ width: `${(bar.done_cols / bar.span) * 100}%`, background: "#A6E0BD" }} />
-        {inside && <span className="relative truncate px-2.5 text-[14px] font-bold">{bar.name}</span>}
+        {/* overflow-clip (no hidden) deja que el nombre quede fijo junto a la columna de equipos al deslizar. */}
+        {inside && <span className="sticky truncate px-2.5 text-[14px] font-bold" style={{ left: GUT }}>{bar.name}</span>}
       </Link>
       {bar.overrun && (
         <span

@@ -17,7 +17,7 @@ Requiere Docker.
 bash ops/local.sh
 ```
 
-Abre http://localhost:8091. Las cuentas de demo (administrador y oficina) y sus contraseñas están en `.env`, que se genera la primera vez y no se sube a git.
+Abre http://localhost:8091 (si el puerto está ocupado, ejecuta `HTTP_PORT=8093 bash ops/local.sh` la primera vez). Las cuentas de demo (administrador y oficina) y sus contraseñas están en `.env`, que se genera la primera vez y no se sube a git.
 
 ## Desarrollo
 
@@ -26,6 +26,7 @@ npm install
 bash ops/test-db.sh        # PostgreSQL de pruebas en 127.0.0.1:5544
 npm run typecheck
 npm test                   # unitarias + integración contra planner_test
+npx playwright test        # E2E (oficina → TV por SSE → móvil, revocación, importación)
 ```
 
 Para trabajar con recarga en caliente, crea `.env` a partir de `.env.example` con `DATABASE_URL` y `PORT=8092`, y ejecuta `npm run server` y `npm run dev` (Vite en http://127.0.0.1:5173, con proxy a la API).
