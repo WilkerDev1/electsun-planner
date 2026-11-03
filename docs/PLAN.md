@@ -58,7 +58,7 @@ Queda fuera, con su mención en "Fuera de la v1": comisionamiento, carpeta de do
 Herramientas verificadas:
 - `gh` tiene sesión como **WilkerDev1** (protocolo SSH, permiso `repo`).
 - `agy` acepta `-p`, `--model`, `--mode plan` y `--add-dir`. Sus modelos incluyen `claude-sonnet-5-5-medium` y `claude-sonnet-5-5-low`.
-- Están instalados Docker y Node 26 (las imágenes usarán Node 24, como Monitor).
+- Están instalados Docker y Node 26 (las imágenes usan Node 26, LTS desde octubre de 2026; Monitor sigue en Node 24).
 
 ## Entregables
 
@@ -273,7 +273,7 @@ Lista de comprobación previa (infraestructura, `fix/infra-pruebas`):
 - [ ] `.env` de producción con `BEHIND_CLOUDFLARE=true` (o sin definir: es el valor por defecto de `compose.yaml`). Con `true`, Caddy responde 403 a toda petición sin `Cf-Connecting-Ip` y pasa esa IP como `X-Forwarded-For`, de modo que no se pueden saltar los límites de intentos falsificando la cabecera. Comprobar con `curl -i http://127.0.0.1:8091/` (debe dar 403) y con `curl -H 'Cf-Connecting-Ip: 1.2.3.4' ...` (200).
 - [ ] La demo local (`ops/local.sh`) usa `compose.local.yaml`, que fija `BEHIND_CLOUDFLARE=false`: Caddy toma la IP real de la conexión e ignora la cabecera. No usar `compose.local.yaml` en producción.
 - [ ] `BOOTSTRAP_EMAIL` y `BOOTSTRAP_PASSWORD` solo para el primer arranque (crean el administrador únicamente si no hay usuarios). Tras entrar por primera vez, **retirar `BOOTSTRAP_PASSWORD` del `.env`** y recrear el contenedor (`docker compose up -d`).
-- [ ] Imágenes fijadas por digest (`postgres:16`, `caddy:2`, `node:24-bookworm-slim`) y acciones de GitHub fijadas por SHA; Dependabot (semanal: npm, actions, docker) propone las actualizaciones, que se revisan antes de aceptar.
+- [ ] Imágenes fijadas por digest (`postgres:16`, `caddy:2`, `node:26-bookworm-slim`) y acciones de GitHub fijadas por SHA; Dependabot (semanal: npm, actions, docker) propone las actualizaciones, que se revisan antes de aceptar.
 - [ ] La CI incluye `npm audit --omit=dev --audit-level=high`; debe estar en verde.
 - [ ] `npx playwright test` en verde (accesibilidad, PWA, mural sin conexión, panel de edición, cuentas).
 
