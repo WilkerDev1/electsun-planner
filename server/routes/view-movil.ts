@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { pool } from "../db.js";
 import { device } from "../auth.js";
-import { listProjects, listStatuses, listTeams } from "../queries.js";
+import { listCompanies, listPrepItems, listProjects, listStatuses, listTeams } from "../queries.js";
 import { serverToday } from "../today.js";
 import { mobileModel, type MobileEmployee, type MobileNotice } from "../../shared/movil-model.js";
 import type { MovilView } from "../../shared/contracts/movil.js";
@@ -20,11 +20,12 @@ viewMovil.get("/", device("mobile"), async (req, res) => {
   // El enlace deja de valer cuando el empleado pasa a "De baja" (ACC-06): 403 y la pantalla lo explica.
   if (!me || me.state === "De baja") return res.status(403).json({ message: GONE });
 
-  const [teams, statuses, projects, companies, notices] = await Promise.all([
+  const [teams, statuses, projects, companies, prepItems, notices] = await Promise.all([
     listTeams(pool),
     listStatuses(pool),
     listProjects(pool),
-    pool.query("SELECT id,name,code,color FROM companies"),
+    listCompanies(pool),
+    listPrepItems(pool),
     pool.query("SELECT id,text,starts_on,expires_on,sort FROM notices WHERE starts_on<=$1 AND expires_on>=$1 ORDER BY sort,created_at", [today]),
   ]);
 
@@ -34,7 +35,8 @@ viewMovil.get("/", device("mobile"), async (req, res) => {
       teams,
       statuses,
       projects,
-      companies: companies.rows,
+      companies,
+      prepItems,
       notices: notices.rows as MobileNotice[],
     },
     me.id,

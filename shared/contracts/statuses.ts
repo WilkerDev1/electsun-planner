@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { STATUS_KINDS, type StatusKind } from "../domain.js";
-import { color, version } from "./common.js";
+import { color, id, version } from "./common.js";
 
 export type Status = {
   id: string;
@@ -13,6 +13,8 @@ export type Status = {
   requires_schedule: boolean;
   requires_reason: boolean;
   version: number;
+  /** Proyectos que usan el estado, archivados incluidos (EST-05). */
+  project_count: number;
 };
 
 export const StatusPatch = z.object({
@@ -30,3 +32,7 @@ export const StatusCreate = z.object({
   bg: color,
   dot: color,
 });
+
+/** Borrado de un estado (EST-05). Con proyectos que lo usan, `replacement_id` es obligatorio. */
+export const StatusDelete = z.object({ version, replacement_id: id.optional() });
+export type StatusDeleted = { deleted_id: string; moved_projects: number };

@@ -1,7 +1,9 @@
 import type { Project, HistoryEntry } from "../../../shared/contracts/projects";
 import type { Status } from "../../../shared/contracts/statuses";
 import type { Company, Employee, Team } from "../../../shared/contracts/equipo";
+import type { PrepItem } from "../../../shared/contracts/prep";
 import {
+  type PrepEntry,
   dayLabel,
   fold,
   monogramColors,
@@ -13,13 +15,14 @@ import {
 
 // Modelo de presentación de la pantalla Proyectos. Los cálculos viven en shared/domain.ts.
 
-export type Catalogs = { statuses: Status[]; companies: Company[]; teams: Team[]; employees: Employee[] };
+export type Catalogs = { statuses: Status[]; companies: Company[]; teams: Team[]; employees: Employee[]; prepItems: PrepItem[] };
 
 export type Lookup = {
   statusById: Map<string, Status>;
   companyById: Map<string, Company>;
   teamById: Map<string, Team>;
   employeeById: Map<string, Employee>;
+  prepItems: PrepItem[];
 };
 
 export const buildLookup = (c: Catalogs): Lookup => ({
@@ -27,6 +30,7 @@ export const buildLookup = (c: Catalogs): Lookup => ({
   companyById: new Map(c.companies.map((s) => [s.id, s])),
   teamById: new Map(c.teams.map((s) => [s.id, s])),
   employeeById: new Map(c.employees.map((s) => [s.id, s])),
+  prepItems: c.prepItems,
 });
 
 /** Campos que la pantalla edita (PATCH). `kwp` viaja como texto. */
@@ -35,7 +39,7 @@ export type EditPatch = Partial<
     Project,
     | "company_id" | "name" | "kwp" | "sale_date" | "place" | "lead_employee_id" | "team_id" | "start_date"
     | "estimated_days" | "end_date" | "status_id" | "pause_reason" | "notes" | "show_on_mural" | "mural_until"
-    | "priority" | "part" | "system_type" | "prep_plans" | "prep_materials" | "prep_ede"
+    | "priority" | "part" | "system_type" | "prep"
   >
 >;
 
@@ -55,7 +59,7 @@ export function computeWarnings(rows: Project[], lk: Lookup, today: string): Map
   for (const p of rows) {
     const status = lk.statusById.get(p.status_id);
     if (!status || p.archived) continue;
-    const v = validateProject(p, status, p.team_id ? (byTeam.get(p.team_id) ?? []) : [], today, (id) => lk.teamById.get(id)?.code ?? "El equipo");
+    const v = validateProject(p, status, p.team_id ? (byTeam.get(p.team_id) ?? []) : [], today, (id) => lk.teamById.get(id)?.code ?? "El equipo", lk.prepItems);
     const all = [...v.errors, ...v.warnings];
     if (all.length) out.set(p.id, all);
   }
@@ -84,7 +88,7 @@ const FIELD_LABEL: Record<string, string> = {
   company_id: "la empresa", name: "el nombre", kwp: "la potencia", sale_date: "la fecha de venta", place: "el lugar",
   lead_employee_id: "el encargado", estimated_days: "los días estimados", pause_reason: "el motivo de la pausa",
   show_on_mural: "el mural", mural_until: "la fecha del mural", part: "la parte", system_type: "el tipo de sistema",
-  prep_plans: "los planos", prep_materials: "los materiales", prep_ede: "la carta de la EDE", actual_end: "el fin real",
+  prep: "la preparación", actual_end: "el fin real",
   notes: "la observación", start_date: "el inicio", end_date: "el fin previsto",
 };
 
@@ -103,7 +107,6 @@ export function describeChange(h: HistoryEntry, lk: Lookup): string {
       phrases.push(`puso ${key === "start_date" ? "el inicio" : "el fin"} el ${dayLabel(b)}`);
     else if (key === "start_date" || key === "end_date") phrases.push(`quitó ${FIELD_LABEL[key]}`);
     else if (key === "system_type") phrases.push(`cambió el tipo a ${b === "hibrido" ? "Híbrido" : "Medición neta"}`);
-    else if (key.startsWith("prep_")) phrases.push(`${b ? "marcó" : "desmarcó"} ${FIELD_LABEL[key]}`);
     else if (key === "show_on_mural") phrases.push(b ? "mostró la observación en el mural" : "quitó la observación del mural");
     else if (key === "actual_end" || key === "mural_until") continue;
     else phrases.push(`cambió ${FIELD_LABEL[key] ?? key}`);
@@ -129,3 +132,10 @@ export function ago(iso: string, now = new Date()): string {
 
 export const teamLabel = (p: Pick<Project, "team_id">, lk: Lookup) => (p.team_id ? (lk.teamById.get(p.team_id)?.code ?? "—") : "sin equipo");
 
+
+/** Lista de preparación tras pulsar un parámetro: lo marca o desmarca; si el proyecto no lo llevaba, lo agrega como hecho. */
+export function toggledPrep(p: Pick<Project, "prep">, itemId: string): PrepEntry[] {
+  return p.prep.some((e) => e.item_id === itemId)
+    ? p.prep.map((e) => (e.item_id === itemId ? { ...e, done: !e.done } : e))
+    : [...p.prep, { item_id: itemId, done: true }];
+}

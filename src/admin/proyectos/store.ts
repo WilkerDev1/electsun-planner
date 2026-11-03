@@ -3,6 +3,7 @@ import { api, ApiError } from "../../ui/api";
 import type { Project } from "../../../shared/contracts/projects";
 import type { Status } from "../../../shared/contracts/statuses";
 import type { Company, Employee, Team } from "../../../shared/contracts/equipo";
+import type { PrepItem } from "../../../shared/contracts/prep";
 import { mergeProject } from "../../../shared/domain";
 import type { Catalogs, EditPatch } from "./model";
 
@@ -50,14 +51,15 @@ export function useProjects(today: string, notify: (message: string, tone?: "ok"
   const loadAll = useCallback(async () => {
     setError(null);
     try {
-      const [statuses, companies, teams, employees] = await Promise.all([
+      const [statuses, companies, teams, employees, prepItems] = await Promise.all([
         api<Status[]>("/statuses"),
         api<Company[]>("/companies"),
         api<Team[]>("/teams"),
         api<Employee[]>("/employees"),
+        api<PrepItem[]>("/prep-items"),
       ]);
       statusesRef.current = new Map(statuses.map((s) => [s.id, s]));
-      setCatalogs({ statuses, companies, teams, employees });
+      setCatalogs({ statuses, companies, teams, employees, prepItems });
       await loadProjects();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "No se pudieron cargar los proyectos.");

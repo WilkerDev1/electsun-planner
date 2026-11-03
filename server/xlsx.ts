@@ -4,7 +4,7 @@ import JSZip from "jszip";
 import type { PoolClient } from "pg";
 import type { Db } from "./db.js";
 import { PROJECT_COLUMNS, listProjects } from "./queries.js";
-import { blankProject, changedFields, fieldsOf, insertProject, saveProject, type ProjectFields } from "./project-store.js";
+import { blankProject, changedFields, defaultPrep, fieldsOf, insertProject, saveProject, type ProjectFields } from "./project-store.js";
 import type { ImportReport, ImportRow, Project } from "../shared/contracts/projects.js";
 import type { Status } from "../shared/contracts/statuses.js";
 import {
@@ -17,6 +17,8 @@ import {
   normalizeDate,
   parseKwp,
   validateProject,
+  type PrepCatalogItem,
+  type PrepEntry,
   type Schedulable,
   type SystemType,
 } from "../shared/domain.js";
@@ -70,17 +72,48 @@ function asText(v: unknown): string {
   return String(v).trim();
 }
 
-function findHeader(ws: ExcelJS.Worksheet): { row: number; cols: Partial<Record<Col, number>> } | null {
+/** Cabeceras antiguas de la preparación, por código del parámetro (el Excel de la v0.1/v0.2 las usaba). */
+const LEGACY_PREP_HEADERS: Record<string, string[]> = {
+  PL: ["Planos", "Planos y BOM"],
+  MA: ["Materiales", "Material", "Materiales completos"],
+  EDE: ["EDE", "Carta de no objeción"],
+};
+
+/** Cabecera (sin tildes ni signos) → parámetro del catálogo: por nombre, por código o por una cabecera antigua. */
+function prepHeaderIndex(catalog: PrepCatalogItem[]): Map<string, string> {
+  const index = new Map<string, string>();
+  for (const item of catalog) {
+    for (const h of [item.name, item.code, ...(LEGACY_PREP_HEADERS[item.code] ?? [])]) {
+      const key = squash(h);
+      if (key && !index.has(key)) index.set(key, item.id);
+    }
+  }
+  return index;
+}
+
+type Header = { row: number; cols: Partial<Record<Col, number>>; prepCols: Map<string, number> };
+
+function findHeader(ws: ExcelJS.Worksheet, prepIndex: Map<string, string>): Header | null {
   for (let r = 1; r <= Math.min(ws.rowCount, 10); r++) {
     const cols: Partial<Record<Col, number>> = {};
+    const prepCols = new Map<string, number>();
     ws.getRow(r).eachCell((cell, n) => {
-      const col = ALIAS_INDEX.get(squash(asText(plain(cell.value) ?? "")));
-      if (col && cols[col] === undefined) cols[col] = n;
+      const key = squash(asText(plain(cell.value) ?? ""));
+      const col = ALIAS_INDEX.get(key);
+      if (col) {
+        if (cols[col] === undefined) cols[col] = n;
+        return;
+      }
+      const item = prepIndex.get(key);
+      if (item && !prepCols.has(item)) prepCols.set(item, n);
     });
-    if (cols.company && cols.name) return { row: r, cols };
+    if (cols.company && cols.name) return { row: r, cols, prepCols };
   }
   return null;
 }
+
+const YES = /^(s[ií]|x|1|true|verdadero|hecho|listo|ok|completo|completa)$/i;
+const NO = /^(no|0|false|falso|pendiente|falta)$/i;
 
 type Plan =
   | { kind: "create"; id: string; fields: ProjectFields }
@@ -115,6 +148,12 @@ export async function importProjects(
   opts: { dry: boolean; actorId: string; today: string },
 ): Promise<ImportReport> {
   await guardZip(buffer);
+  const catalog = (
+    await c.query("SELECT id,code,name,pending_label,applies_to FROM prep_items ORDER BY sort,code")
+  ).rows as PrepCatalogItem[];
+  const defaults = await defaultPrep(c);
+  const order = new Map(catalog.map((i, n) => [i.id, n]));
+  const prepIndex = prepHeaderIndex(catalog);
   const wb = new ExcelJS.Workbook();
   try {
     await wb.xlsx.load(buffer as unknown as ExcelJS.Buffer);
@@ -122,9 +161,9 @@ export async function importProjects(
     throw Object.assign(new Error("No se pudo leer el archivo. Verifica que sea un Excel (.xlsx) válido."), { status: 422 });
   }
   let sheet: ExcelJS.Worksheet | undefined;
-  let header: ReturnType<typeof findHeader> = null;
+  let header: Header | null = null;
   for (const ws of wb.worksheets) {
-    header = findHeader(ws);
+    header = findHeader(ws, prepIndex);
     if (header) {
       sheet = ws;
       break;
@@ -190,7 +229,8 @@ export async function importProjects(
   for (let n = header.row + 1; n <= sheet.rowCount; n++) {
     const xr = sheet.getRow(n);
     const raw = (col: Col): unknown => (cols[col] === undefined ? undefined : plain(xr.getCell(cols[col]!).value));
-    if ((Object.keys(cols) as Col[]).every((k) => isBlank(raw(k)))) continue;
+    const prepRaw = (itemId: string): unknown => plain(xr.getCell(header!.prepCols.get(itemId)!).value);
+    if ((Object.keys(cols) as Col[]).every((k) => isBlank(raw(k))) && [...header.prepCols.keys()].every((i) => isBlank(prepRaw(i)))) continue;
 
     const errors: string[] = [];
     const notes: string[] = [];
@@ -279,6 +319,19 @@ export async function importProjects(
       else patch.estimated_days = d;
     }
 
+    // Preparación: «Sí» = hecho, «No» = pendiente, «N/A» o «-» = el proyecto no lleva ese parámetro, vacío = sin cambios.
+    const prepChanges = new Map<string, boolean | null>();
+    for (const item of catalog) {
+      if (!header.prepCols.has(item.id)) continue;
+      const v = prepRaw(item.id);
+      if (isBlank(v)) continue;
+      const t = asText(v);
+      if (EMPTY_TOKEN.test(t)) prepChanges.set(item.id, null);
+      else if (YES.test(t)) prepChanges.set(item.id, true);
+      else if (NO.test(t)) prepChanges.set(item.id, false);
+      else fail(`Valor no válido en «${item.name}»: ${t}. Usa Sí, No o N/A.`);
+    }
+
     // ¿Es nuevo o actualiza? (empresa + nombre + parte)
     const key = `${companyId}|${fold(name)}|${part === undefined ? "" : fold(part)}`;
     if (!errors.length) {
@@ -303,7 +356,13 @@ export async function importProjects(
     }
 
     // Resultado: mezcla con la fila actual (o con los valores por defecto) y normalización común
-    const base: ProjectFields = prev ? fieldsOf(prev) : blankProject(companyId!, name, defaultStatus.id, part ?? "");
+    const base: ProjectFields = prev ? fieldsOf(prev) : { ...blankProject(companyId!, name, defaultStatus.id, part ?? ""), prep: defaults };
+    if (prepChanges.size) {
+      const mine = new Map<string, boolean>(base.prep.map((e: PrepEntry) => [e.item_id, e.done]));
+      for (const [itemId, done] of prepChanges) if (done === null) mine.delete(itemId);
+      else mine.set(itemId, done);
+      patch.prep = [...mine].map(([item_id, done]) => ({ item_id, done })).sort((a, b) => (order.get(a.item_id) ?? 0) - (order.get(b.item_id) ?? 0));
+    }
     const target = statusById.get(patch.status_id ?? base.status_id)!;
     const merged = mergeProject(base, patch, target.kind, opts.today, patch.end_date ?? base.end_date ?? opts.today);
     if (target.requires_reason && !merged.pause_reason.trim() && merged.notes.trim()) {
@@ -326,6 +385,7 @@ export async function importProjects(
       [...sched.values()],
       opts.today,
       (t) => teamCode.get(t) ?? "El equipo",
+      catalog,
     );
     if (check.errors.length) {
       rows.push({ row: n, action: "error", name: label, messages: check.errors });
@@ -383,18 +443,21 @@ const EXPORT_COLUMNS: { header: string; width: number }[] = [
   { header: "Prioridad", width: 10 },
   { header: "Parte", width: 12 },
 ];
+/** Después de estas columnas va una por cada parámetro del catálogo de preparación. */
 
 const asDate = (iso: string | null) => (iso ? new Date(iso + "T00:00:00Z") : null);
 
 /** Libro `.xlsx` con las columnas del Excel original más Tipo, Preparación, Días, Fin real, Prioridad y Parte. */
 export async function exportProjects(db: Db, filter: { status?: string; q?: string }): Promise<Buffer> {
-  const [projects, statuses, companies, teams, employees] = await Promise.all([
+  const [projects, statuses, companies, teams, employees, prepCatalog] = await Promise.all([
     listProjects(db),
     db.query("SELECT id,name FROM statuses"),
     db.query("SELECT id,name FROM companies"),
     db.query("SELECT id,name FROM teams"),
     db.query("SELECT id,name FROM employees"),
+    db.query("SELECT id,code,name,pending_label,applies_to FROM prep_items ORDER BY sort,code"),
   ]);
+  const catalog = prepCatalog.rows as PrepCatalogItem[];
   const name = (rows: { id: string; name: string }[]) => new Map(rows.map((r) => [r.id, r.name]));
   const statusName = name(statuses.rows);
   const companyName = name(companies.rows);
@@ -410,11 +473,13 @@ export async function exportProjects(db: Db, filter: { status?: string; q?: stri
   const wb = new ExcelJS.Workbook();
   wb.creator = "Electsun Planner";
   const ws = wb.addWorksheet("Proyectos", { views: [{ state: "frozen", ySplit: 1, xSplit: 2 }] });
-  ws.columns = EXPORT_COLUMNS.map((x) => ({ header: x.header, width: x.width }));
+  const columns = [...EXPORT_COLUMNS, ...catalog.map((i) => ({ header: i.name, width: Math.max(12, Math.min(26, i.name.length + 2)) }))];
+  ws.columns = columns.map((x) => ({ header: x.header, width: x.width }));
   ws.getRow(1).font = { bold: true };
   ws.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2F4F7" } };
   for (const p of list) {
-    const miss = missingPrep(p);
+    const miss = missingPrep(p, catalog);
+    const mine = new Map(p.prep.map((e) => [e.item_id, e.done]));
     ws.addRow([
       companyName.get(p.company_id) ?? "",
       p.name,
@@ -433,11 +498,12 @@ export async function exportProjects(db: Db, filter: { status?: string; q?: stri
       asDate(p.actual_end),
       p.priority ? "Sí" : "",
       p.part,
+      ...catalog.map((i) => (mine.has(i.id) ? (mine.get(i.id) ? "Sí" : "No") : "")),
     ]);
   }
   for (const k of [4, 8, 9, 15]) ws.getColumn(k).numFmt = "dd/mm/yyyy";
   ws.getColumn(3).numFmt = "0.00";
-  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: EXPORT_COLUMNS.length } };
+  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: columns.length } };
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
 

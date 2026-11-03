@@ -1,12 +1,26 @@
 import { z } from "zod";
 import { EMPLOYEE_STATES, LEVELS, type EmployeeState, type Level } from "../domain.js";
+import { COMPANY_PATTERNS, type CompanyPattern } from "../pattern.js";
 import { color, id, version } from "./common.js";
 
-export type Company = { id: string; name: string; code: string; color: string; active: boolean; version: number; project_count: number };
+export type Company = {
+  id: string;
+  name: string;
+  code: string;
+  color: string;
+  /** Patrón del color (EQP-08). */
+  pattern: CompanyPattern;
+  /** `/api/companies/:id/logo?v=<hash corto>`, o null si no tiene logotipo (EQP-07). El `?v=` cambia con cada logotipo nuevo. */
+  logo_url: string | null;
+  active: boolean;
+  version: number;
+  project_count: number;
+};
 export const CompanyCreate = z.object({
   name: z.string().trim().min(1).max(80),
   code: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{2}$/, "Sigla de 2 letras."),
   color,
+  pattern: z.enum(COMPANY_PATTERNS).optional(),
 });
 export const CompanyPatch = CompanyCreate.partial().extend({ version, active: z.boolean().optional() });
 

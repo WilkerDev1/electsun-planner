@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { pool, httpError } from "../db.js";
 import { findDevice } from "../auth.js";
-import { listCompanies, listProjects, listStatuses, listTeams } from "../queries.js";
+import { listCompanies, listPrepItems, listProjects, listStatuses, listTeams } from "../queries.js";
 import { serverToday } from "../today.js";
 import { muralModel } from "../../shared/mural-model.js";
 import { MuralSettings, type MuralView, type Notice } from "../../shared/contracts/mural.js";
@@ -38,11 +38,12 @@ viewMural.get("/", async (req, res) => {
     if (!z.uuid().safeParse(link).success || !(await findDevice(req, "tv", link))) throw httpError(403, DENIED);
   }
 
-  const [projects, statuses, companies, teams, notices, saved] = await Promise.all([
+  const [projects, statuses, companies, teams, prepItems, notices, saved] = await Promise.all([
     listProjects(pool),
     listStatuses(pool),
     listCompanies(pool),
     listTeams(pool),
+    listPrepItems(pool),
     pool.query("SELECT id,text,starts_on,expires_on,sort FROM notices ORDER BY sort,starts_on").then((r) => r.rows as Notice[]),
     getMuralSettings(pool),
   ]);
@@ -52,8 +53,8 @@ viewMural.get("/", async (req, res) => {
     today,
     generatedAt: new Date().toISOString(),
     settings,
-    model: muralModel({ projects, statuses, companies, teams, notices }, settings, today),
-    companies: companies.map(({ id, name, code, color }) => ({ id, name, code, color })),
+    model: muralModel({ projects, statuses, companies, teams, notices, prepItems }, settings, today),
+    companies: companies.map(({ id, name, code, color, pattern, logo_url }) => ({ id, name, code, color, pattern, logo_url })),
     teams: teams.map(({ id, code, name, color }) => ({ id, code, name, color })),
   };
   res.json(view);

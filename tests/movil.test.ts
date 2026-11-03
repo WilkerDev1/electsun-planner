@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { setup, endPool, cookieFrom, type Ctx } from "./helpers.js";
 import { mobileModel, type MobileInput } from "../shared/movil-model.js";
-import { demoCompanies, demoEmployees, demoNotices, demoProjects, demoTeams } from "../shared/seed-demo.js";
+import { demoCompanies, demoEmployees, demoNotices, demoPrepItems, demoProjects, demoTeams } from "../shared/seed-demo.js";
 import { isWorkday } from "../shared/domain.js";
 import type { StatusKind } from "../shared/domain.js";
 import type { MovilView } from "../shared/contracts/movil.js";
@@ -35,6 +35,7 @@ function demoInput(): MobileInput {
   const uuid = () => crypto.randomUUID();
   const statuses = Object.entries(STATUS_KIND).map(([name, kind]) => ({ id: uuid(), name, kind }));
   const companies = demoCompanies.map((c) => ({ id: uuid(), ...c }));
+  const prepItems = demoPrepItems.map((i) => ({ id: uuid(), ...i }));
   const teams = demoTeams.map((t) => ({ id: uuid(), code: t.code, name: t.name, lead_employee_id: null as string | null, active: true }));
   const employees = demoEmployees.map((e) => ({
     id: uuid(),
@@ -66,14 +67,12 @@ function demoInput(): MobileInput {
       priority: !!p.priority,
       part: p.part ?? "",
       system_type: p.type,
-      prep_plans: p.prep[0],
-      prep_materials: p.prep[1],
-      prep_ede: p.prep[2],
+      prep: Object.entries(p.prep).map(([code, done]) => ({ item_id: prepItems.find((i) => i.code === code)!.id, done })),
       archived: false,
     };
   });
   const notices = demoNotices.map((n, i) => ({ id: uuid(), text: n.text, starts_on: TODAY, expires_on: "2026-11-30", sort: i }));
-  return { employees, teams, companies, statuses, projects, notices };
+  return { employees, teams, companies, statuses, projects, notices, prepItems };
 }
 
 const input = demoInput();

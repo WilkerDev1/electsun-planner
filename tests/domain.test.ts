@@ -27,8 +27,19 @@ import {
   parseKwp,
   actualEndFor,
   mergeProject,
+  prepRows,
+  waitLabel,
+  type PrepCatalogItem,
   type Schedulable,
 } from "../shared/domain.js";
+
+// Catálogo de preparación de la demo (migración 002) más un parámetro propio.
+const PL: PrepCatalogItem = { id: "pl", code: "PL", name: "Planos y BOM", pending_label: "planos", applies_to: "todos" };
+const MA: PrepCatalogItem = { id: "ma", code: "MA", name: "Materiales completos", pending_label: "material", applies_to: "todos" };
+const EDE: PrepCatalogItem = { id: "ede", code: "EDE", name: "Carta de no objeción", pending_label: "EDE", applies_to: "neta" };
+const PM: PrepCatalogItem = { id: "pm", code: "PM", name: "Permiso municipal", pending_label: "espera permiso", applies_to: "todos" };
+const CAT = [PL, MA, EDE];
+const prep = (...e: [string, boolean][]) => e.map(([item_id, done]) => ({ item_id, done }));
 
 const TODAY = "2026-10-27"; // martes de la demo
 const BASE = "2026-10-26"; // lunes
@@ -112,12 +123,31 @@ test("barras del calendario (CAL-03)", () => {
   assert.deepEqual(over && [over.col, over.span], [1, 1]);
 });
 
-test("preparación y motivo de espera (CAL-07)", () => {
-  const p = { system_type: "neta" as const, prep_plans: true, prep_materials: false, prep_ede: false };
-  assert.deepEqual(missingPrep(p), ["material", "EDE"]);
-  assert.equal(waitReason(p), "Espera material y EDE");
-  assert.equal(waitReason({ ...p, prep_plans: false }), "Espera planos, material y EDE");
-  assert.equal(waitReason({ ...p, system_type: "hibrido", prep_materials: true }), "Lista para programar");
+test("preparación y motivo de espera (CAL-07, PRY-12)", () => {
+  const p = { system_type: "neta" as const, prep: prep(["pl", true], ["ma", false], ["ede", false]) };
+  assert.deepEqual(missingPrep(p, CAT), ["material", "EDE"]);
+  assert.equal(waitReason(p, CAT), "Espera material y EDE");
+  assert.equal(waitReason({ ...p, prep: prep(["pl", false], ["ma", false], ["ede", false]) }, CAT), "Espera planos, material y EDE");
+  // Un parámetro que no aplica al tipo no cuenta como pendiente.
+  assert.equal(waitReason({ system_type: "hibrido", prep: prep(["pl", true], ["ma", true], ["ede", false]) }, CAT), "Lista para programar");
+  // Los que el proyecto no eligió no cuentan; sin ninguno no hay nada pendiente.
+  assert.equal(waitReason({ system_type: "neta", prep: prep(["pl", true]) }, CAT), "Lista para programar");
+  assert.deepEqual(missingPrep({ system_type: "neta", prep: [] }, CAT), []);
+  assert.deepEqual(missingPrep(p, []), []);
+  // Un parámetro propio: «espera permiso» se une sin repetir el verbo.
+  assert.equal(waitReason({ system_type: "neta", prep: prep(["pl", false], ["pm", false]) }, [...CAT, PM]), "Espera planos y permiso");
+  assert.equal(waitLabel("Falta material"), "material");
+  assert.equal(waitLabel("  espera EDE "), "EDE");
+  assert.equal(waitLabel("planos"), "planos");
+});
+
+test("filas de preparación: elegido, hecho y si aplica (PRY-12)", () => {
+  const rows = prepRows({ system_type: "hibrido", prep: prep(["pl", true], ["ede", false]) }, CAT);
+  assert.deepEqual(rows.map((r) => [r.item.code, r.selected, r.done, r.applies, r.pending]), [
+    ["PL", true, true, true, false],
+    ["MA", false, false, true, false],
+    ["EDE", true, false, false, false],
+  ]);
 });
 
 test("choque de equipo (VAL-06)", () => {
@@ -145,17 +175,17 @@ test("normalización de fechas (VAL-05, XLS-04)", () => {
 test("validación del proyecto (VAL)", () => {
   const p = {
     id: "x", name: "X", sale_date: "2026-10-20", start_date: "2026-10-19", end_date: "2026-10-18",
-    team_id: null, pause_reason: "", system_type: "neta" as const, prep_plans: true, prep_materials: true, prep_ede: false,
+    team_id: null, pause_reason: "", system_type: "neta" as const, prep: prep(["pl", true], ["ma", true], ["ede", false]),
   };
   const prog = { kind: "programado" as const, name: "Programado", requires_schedule: true, requires_reason: false };
-  const r = validateProject(p, prog, [], TODAY);
+  const r = validateProject(p, prog, [], TODAY, undefined, CAT);
   assert.equal(r.errors.length, 2);
   assert.match(r.warnings.join(" "), /anterior a la fecha de venta/);
   assert.match(r.warnings.join(" "), /preparación pendiente: falta EDE/);
   const pause = { kind: "en_pausa" as const, name: "En pausa", requires_schedule: false, requires_reason: true };
   assert.deepEqual(validateProject({ ...p, end_date: null }, pause, [], TODAY).errors, ["Falta el motivo de la pausa."]);
   const obra = { kind: "en_obra" as const, name: "En obra", requires_schedule: true, requires_reason: false };
-  const late = validateProject({ ...p, team_id: "t", end_date: "2026-10-26", prep_ede: true }, obra, [], TODAY);
+  const late = validateProject({ ...p, team_id: "t", end_date: "2026-10-26", prep: prep(["pl", true], ["ma", true], ["ede", true]) }, obra, [], TODAY, undefined, CAT);
   assert.deepEqual(late.errors, []);
   assert.match(late.warnings.join(" "), /Atrasada · \+1 día: debía terminar el lun 26 oct/);
 });
@@ -194,13 +224,15 @@ test("kWp y fin real", () => {
   assert.equal(actualEndFor("en_obra", "2026-10-06", TODAY), null);
 });
 
-test("mergeProject normaliza como el servidor (VAL-09, PRY-01)", () => {
+test("mergeProject normaliza como el servidor (PRY-01, PRY-12)", () => {
   const prev = {
     start_date: "2026-10-19" as string | null, end_date: "2026-10-30" as string | null, estimated_days: 11 as number | null,
-    system_type: "neta" as "neta" | "hibrido", prep_plans: true, prep_materials: true, prep_ede: true,
+    system_type: "neta" as "neta" | "hibrido", prep: prep(["pl", true], ["ma", true], ["ede", true]),
     status_id: "a", actual_end: null as string | null, show_on_mural: false, mural_until: null as string | null,
   };
-  assert.equal(mergeProject(prev, { system_type: "hibrido" }, "en_obra", TODAY).prep_ede, false);
+  // La preparación no se toca al cambiar el tipo (los que no aplican simplemente no cuentan) y se reemplaza completa.
+  assert.deepEqual(mergeProject(prev, { system_type: "hibrido" }, "en_obra", TODAY).prep, prev.prep);
+  assert.deepEqual(mergeProject(prev, { prep: prep(["pl", false]) }, "en_obra", TODAY).prep, prep(["pl", false]));
   const done = mergeProject(prev, { status_id: "b" }, "terminado", TODAY);
   assert.equal(done.actual_end, TODAY);
   assert.equal(mergeProject(done, { status_id: "a" }, "en_obra", TODAY).actual_end, null);
@@ -211,7 +243,7 @@ test("mergeProject normaliza como el servidor (VAL-09, PRY-01)", () => {
 test("en obra sin fin ni días no se guarda (VAL-01)", () => {
   const p = {
     id: "x", name: "X", sale_date: null, start_date: "2026-10-20", end_date: null, estimated_days: null as number | null,
-    team_id: "t", pause_reason: "", system_type: "hibrido" as const, prep_plans: true, prep_materials: true, prep_ede: false,
+    team_id: "t", pause_reason: "", system_type: "hibrido" as const, prep: prep(["pl", true], ["ma", true]),
   };
   const obra = { kind: "en_obra" as const, name: "En obra", requires_schedule: true, requires_reason: false };
   assert.deepEqual(validateProject(p, obra, [], TODAY).errors, ["Para estar En obra necesita fecha de fin o días estimados."]);
@@ -226,11 +258,11 @@ test("en obra sin fin ni días no se guarda (VAL-01)", () => {
 test("los avisos llevan código y coinciden con su texto (VAL-06, CAL-06)", () => {
   const p = {
     id: "x", name: "X", sale_date: "2026-10-25", start_date: "2026-10-20", end_date: "2026-10-26", estimated_days: 6,
-    team_id: "t", pause_reason: "", system_type: "neta" as const, prep_plans: true, prep_materials: true, prep_ede: false,
+    team_id: "t", pause_reason: "", system_type: "neta" as const, prep: prep(["pl", true], ["ma", true], ["ede", false]),
   };
   const obra = { kind: "en_obra" as const, name: "En obra", requires_schedule: true, requires_reason: false };
   const other: Schedulable = { id: "o", name: "Otra", team_id: "t", start_date: "2026-10-22", end_date: "2026-10-23", kind: "en_obra" };
-  const v = validateProject(p, obra, [other], TODAY, () => "E1");
+  const v = validateProject(p, obra, [other], TODAY, () => "E1", CAT);
   assert.deepEqual(v.coded.map((w) => w.code).sort(), ["atrasada", "choque_equipo", "inicio_antes_venta", "prep_pendiente"]);
   assert.deepEqual(v.warnings, v.coded.map((w) => w.text));
   for (const w of v.coded) assert.equal(warningCodeOf(w.text), w.code);

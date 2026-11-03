@@ -26,9 +26,13 @@ import {
   type EmployeeState,
   type ISODate,
   type Level,
+  type PrepCatalogItem,
+  type PrepEntry,
   type StatusKind,
   type SystemType,
 } from "./domain.js";
+import { prepRows } from "./domain.js";
+import type { CompanyPattern } from "./pattern.js";
 import type {
   AgendaDay,
   AgendaItem,
@@ -55,7 +59,7 @@ export type MobileEmployee = {
   phone: string;
 };
 export type MobileTeam = { id: string; code: string; name: string; lead_employee_id: string | null; active: boolean };
-export type MobileCompany = { id: string; name: string; code: string; color: string };
+export type MobileCompany = { id: string; name: string; code: string; color: string; pattern?: CompanyPattern; logo_url?: string | null };
 export type MobileStatus = { id: string; name: string; kind: StatusKind };
 export type MobileProject = {
   id: string;
@@ -75,9 +79,7 @@ export type MobileProject = {
   priority: boolean;
   part: string;
   system_type: SystemType;
-  prep_plans: boolean;
-  prep_materials: boolean;
-  prep_ede: boolean;
+  prep: PrepEntry[];
   archived: boolean;
 };
 export type MobileNotice = { id: string; text: string; starts_on: ISODate; expires_on: ISODate; sort: number };
@@ -89,6 +91,8 @@ export type MobileInput = {
   statuses: MobileStatus[];
   projects: MobileProject[];
   notices: MobileNotice[];
+  /** Catálogo de preparación, para el detalle de cada obra (PRY-12, MOV-05). */
+  prepItems: PrepCatalogItem[];
 };
 
 const WEEKS_AGENDA = 3;
@@ -185,7 +189,13 @@ export function mobileModel(input: MobileInput, employeeId: string, today: ISODa
     return {
       id: p.id,
       name: p.name,
-      company: { name: company?.name ?? "", code: company?.code ?? "", color: company?.color ?? "#667085" },
+      company: {
+        name: company?.name ?? "",
+        code: company?.code ?? "",
+        color: company?.color ?? "#667085",
+        pattern: company?.pattern ?? "solido",
+        logo_url: company?.logo_url ?? null,
+      },
       place: p.place,
       kwp: p.kwp,
       team_code: p.team_id ? (teamById.get(p.team_id)?.code ?? null) : null,
@@ -226,15 +236,18 @@ export function mobileModel(input: MobileInput, employeeId: string, today: ISODa
     const team = p.team_id ? teamById.get(p.team_id) : undefined;
     const lead = (p.lead_employee_id ? employeeById.get(p.lead_employee_id) : undefined) ??
       (team?.lead_employee_id ? employeeById.get(team.lead_employee_id) : undefined);
-    const missing = missingPrep(p);
+    const missing = missingPrep(p, input.prepItems);
     return {
       ...j,
       segments: segments(j),
       start_text: cap(dayLabel(j.start_date)),
       end_text_long: cap(dayLabel(j.end_date)),
       notes: p.notes,
-      prep_text: missing.length ? waitReason(p) : "Lista",
+      prep_text: missing.length ? waitReason(p, input.prepItems) : "Lista",
       prep_ready: !missing.length,
+      prep: prepRows(p, input.prepItems)
+        .filter((r) => r.selected)
+        .map((r) => ({ code: r.item.code, name: r.item.name, done: r.done, applies: r.applies })),
       map_url: mapsUrl(p.place),
       lead: contact(lead),
       supervisor: supervisor && supervisor.id !== lead?.id ? contact(supervisor) : null,

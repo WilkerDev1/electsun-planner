@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { SYSTEM_TYPES, type SystemType, type StatusKind } from "../domain.js";
+import { SYSTEM_TYPES, type CodedWarning, type PrepEntry, type SystemType, type StatusKind } from "../domain.js";
 import { id, optionalDate, version } from "./common.js";
+import { ProjectPrepBody } from "./prep.js";
 
 /** Proyecto tal como lo devuelve la API (REQUISITOS PRY-01). Fechas "aaaa-mm-dd" o null. */
 export type Project = {
@@ -25,13 +26,19 @@ export type Project = {
   priority: boolean;
   part: string;
   system_type: SystemType;
-  prep_plans: boolean;
-  prep_materials: boolean;
-  prep_ede: boolean;
+  /** Parámetros de preparación elegidos para este proyecto, en el orden del catálogo (PRY-12). Sin elegidos, la lista es vacía. */
+  prep: PrepEntry[];
   archived: boolean;
   version: number;
   created_at: string;
   updated_at: string;
+};
+
+/** Respuesta del POST, el PATCH y el archivado: el proyecto más los avisos de validación (VAL-10). */
+export type ProjectResponse = Project & {
+  warnings: string[];
+  /** Los mismos avisos, en el mismo orden, con un código estable. */
+  coded_warnings: CodedWarning[];
 };
 
 const fields = {
@@ -53,9 +60,7 @@ const fields = {
   priority: z.boolean(),
   part: z.string().trim().max(40),
   system_type: z.enum(SYSTEM_TYPES),
-  prep_plans: z.boolean(),
-  prep_materials: z.boolean(),
-  prep_ede: z.boolean(),
+  prep: ProjectPrepBody,
   archived: z.boolean(),
 };
 
@@ -85,4 +90,13 @@ export type ImportReport = {
   /** Filas del archivo que ya coinciden con el proyecto y no cambian nada. */
   unchanged?: number;
   rows: ImportRow[];
+};
+
+/** Archivar o desarchivar varios proyectos de una vez (PRY-10). */
+export const ArchiveBulk = z.object({ ids: z.array(id).min(1).max(200), archived: z.boolean() });
+export type ArchiveBulkResult = {
+  /** Los proyectos pedidos, en su estado final y en el orden pedido. */
+  projects: Project[];
+  /** Cuántos cambiaron de verdad (los que ya estaban así no se tocan). */
+  changed: number;
 };

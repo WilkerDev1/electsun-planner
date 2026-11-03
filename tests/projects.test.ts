@@ -178,7 +178,7 @@ test("fin y días se mantienen coherentes (CAL-05)", async () => {
   assert.equal(cleared.data.end_date, null);
 });
 
-test("normalización: N/A en fechas, kWp con coma, híbrido sin EDE y hasta del mural (VAL-05, VAL-09, PRY-01)", async () => {
+test("normalización: N/A en fechas, kWp con coma, híbrido con EDE sin contar y hasta del mural (VAL-05, VAL-09, PRY-01)", async () => {
   const na = await patch("Sr. Herrera", { sale_date: "N/A", mural_until: "-" });
   assert.equal(na.status, 200);
   assert.equal(na.data.sale_date, null);
@@ -187,10 +187,12 @@ test("normalización: N/A en fechas, kWp con coma, híbrido sin EDE y hasta del 
   assert.equal(kwp.data.kwp, "17.50");
 
   const carla = await byName("Carla Méndez");
-  assert.equal(carla.prep_ede, true);
-  const hib = await patch("Carla Méndez", { system_type: "hibrido", prep_ede: true });
+  assert.equal(carla.prep.length, 3);
+  assert.ok(carla.prep.every((e) => e.done));
+  const hib = await patch("Carla Méndez", { system_type: "hibrido" });
   assert.equal(hib.data.system_type, "hibrido");
-  assert.equal(hib.data.prep_ede, false);
+  // La preparación se conserva; el parámetro que no aplica al tipo simplemente no cuenta (VAL-09).
+  assert.deepEqual(hib.data.prep, carla.prep);
 
   const mural = await patch("Paola Núñez", { show_on_mural: true });
   assert.equal(mural.data.mural_until, "2026-11-03"); // hoy + 7 días naturales
@@ -217,7 +219,7 @@ test("historial con el nombre de quien cambió (HIS-02, HIS-03)", async () => {
   assert.ok(r.data.length >= 2);
   assert.equal(r.data[0].actor_name, "Oficina");
   assert.equal(r.data[0].action, "project.update");
-  assert.deepEqual(Object.keys(r.data[0].diff).sort(), ["prep_ede", "system_type"]);
+  assert.deepEqual(Object.keys(r.data[0].diff), ["system_type"]);
   assert.deepEqual(r.data[0].diff.system_type, ["neta", "hibrido"]);
   assert.ok(new Date(r.data[0].created_at).getTime() > 0);
   // El historial no se edita desde la app.
@@ -427,6 +429,8 @@ test("exportar a Excel con filtros (XLS-05)", async () => {
   assert.deepEqual(all.header, [
     "Contratista", "Proyecto", "kWp", "Fecha de venta", "Lugar", "Encargado", "Cuadrilla/Equipo", "Inicio", "Fin",
     "Estado", "Observación", "Tipo", "Preparación", "Días", "Fin real", "Prioridad", "Parte",
+    // Una columna por cada parámetro del catálogo de preparación (PRY-12).
+    "Planos y BOM", "Materiales completos", "Carta de no objeción", "Permiso municipal",
   ]);
   const total = (await list()).length;
   assert.equal(all.rows.length, total);
@@ -440,6 +444,8 @@ test("exportar a Excel con filtros (XLS-05)", async () => {
   assert.equal(colegio.getCell(13).value, "Completa");
   assert.equal(colegio.getCell(14).value, 11);
   assert.equal(colegio.getCell(16).value, "Sí");
+  // Colegio Arcoíris (híbrido) lleva planos y materiales hechos; no lleva EDE ni permiso: celdas vacías.
+  assert.deepEqual([18, 19, 20, 21].map((n) => colegio.getCell(n).value ?? ""), ["Sí", "Sí", "", ""]);
 
   const enObra = await read(`?status=${statuses["En obra"].id}`);
   assert.equal(enObra.rows.length, 3);
@@ -455,7 +461,7 @@ test("exportar a Excel con filtros (XLS-05)", async () => {
   assert.deepEqual(again.data.rows.filter((r) => r.action === "error"), []);
 });
 
-test("estados: solo el administrador crea y edita, y no se borran (EST-01, EST-04)", async () => {
+test("estados: solo el administrador crea y edita (EST-01, EST-04)", async () => {
   const meter = statuses["Esperando medidor"];
   assert.equal((await ctx.request("/statuses", "POST", { name: "Reprogramado", kind: "programado", fg: "#3538CD", bg: "#EEF0FE", dot: "#6172F3" })).status, 401);
   const body = { name: "Reprogramado", kind: "programado", fg: "#3538CD", bg: "#EEF0FE", dot: "#6172F3" };
@@ -487,8 +493,9 @@ test("estados: solo el administrador crea y edita, y no se borran (EST-01, EST-0
     assert.ok((await ctx.request<Status[]>("/statuses", "GET", undefined, ctx.office)).data.some((s) => s.name === "Esperando contador"));
     await ctx.request(`/statuses/${meter.id}`, "PATCH", { version: renamed.data.version, name: meter.name }, ctx.admin);
 
-    assert.equal((await ctx.request(`/statuses/${meter.id}`, "DELETE", undefined, ctx.admin)).status, 409);
-    assert.equal((await ctx.request(`/statuses/${meter.id}`, "DELETE", undefined, ctx.office)).status, 403);
+    // EST-05: es el único de su tipo, así que no se puede borrar; la oficina no borra estados (los casos completos: tests/v03.test.ts).
+    assert.equal((await ctx.request(`/statuses/${meter.id}`, "DELETE", { version: meter.version }, ctx.admin)).status, 409);
+    assert.equal((await ctx.request(`/statuses/${meter.id}`, "DELETE", { version: meter.version }, ctx.office)).status, 403);
     assert.equal((await ctx.request("/statuses/no-es-un-id", "PATCH", { version: 1 }, ctx.admin)).status, 404);
   } finally {
     await pool.query("DELETE FROM statuses WHERE name='Reprogramado'");

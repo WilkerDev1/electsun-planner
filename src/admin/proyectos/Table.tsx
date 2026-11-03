@@ -2,9 +2,9 @@ import { memo, type ReactNode } from "react";
 import type { Project } from "../../../shared/contracts/projects";
 import type { Status } from "../../../shared/contracts/statuses";
 import type { Team } from "../../../shared/contracts/equipo";
-import { lateDays, missingPrep, waitReason } from "../../../shared/domain";
+import { lateDays, missingPrep, prepRows, waitReason } from "../../../shared/domain";
 import { AutoDate, AutoText } from "./inputs";
-import { datesShort, monoColors, teamLabel, type EditPatch, type Lookup } from "./model";
+import { datesShort, monoColors, teamLabel, toggledPrep, type EditPatch, type Lookup } from "./model";
 
 // Tabla tipo Excel (PRY-02, PRY-03) y lista compacta cuando el panel de edición está abierto (V4Proyectos).
 
@@ -50,12 +50,6 @@ export function Header() {
   );
 }
 
-const PREP = [
-  { key: "prep_plans", short: "PL", title: "Planos y BOM" },
-  { key: "prep_materials", short: "MA", title: "Materiales completos" },
-  { key: "prep_ede", short: "EDE", title: "Carta de no objeción" },
-] as const;
-
 type RowProps = {
   p: Project;
   index: number;
@@ -82,7 +76,7 @@ export const Row = memo(function Row({ p, index, selected, warn, today, isAdmin,
   const obsText = paused && p.pause_reason ? `Pausa: ${p.pause_reason}` : p.notes || "—";
   const team = p.team_id ? lk.teamById.get(p.team_id) : undefined;
   const teamOptions = team && !team.active ? [...teams, team] : teams;
-  const miss = missingPrep(p);
+  const miss = missingPrep(p, lk.prepItems);
   return (
     <>
       <div
@@ -134,9 +128,10 @@ export const Row = memo(function Row({ p, index, selected, warn, today, isAdmin,
           </span>
         </span>
         <span role="cell" className={`${cell} gap-1 px-2.5`}>
-          {PREP.map((c) => {
-            const na = c.key === "prep_ede" && p.system_type !== "neta";
-            const ok = !na && p[c.key];
+          {prepRows(p, lk.prepItems).map(({ item, applies, done }) => {
+            const c = { key: item.id, short: item.code, title: item.name };
+            const na = !applies;
+            const ok = !na && done;
             const title = na ? `${c.title} (no aplica)` : ok ? `${c.title}: listo` : `${c.title}: falta`;
             return (
               <button
@@ -146,7 +141,7 @@ export const Row = memo(function Row({ p, index, selected, warn, today, isAdmin,
                 aria-pressed={ok}
                 aria-label={`${c.short} · ${title} · ${p.name}`}
                 title={title}
-                onClick={() => onPatch(p.id, { [c.key]: !p[c.key] })}
+                onClick={() => onPatch(p.id, { prep: toggledPrep(p, c.key) })}
                 className="flex h-[26px] min-w-[34px] items-center justify-center gap-0.5 rounded-md px-1.5 text-[11px] font-extrabold"
                 style={{
                   background: na ? "#F9FAFB" : ok ? "#E7F7EE" : "#FFFFFF",
@@ -160,7 +155,7 @@ export const Row = memo(function Row({ p, index, selected, warn, today, isAdmin,
               </button>
             );
           })}
-          <span className="sr-only">{miss.length ? waitReason(p) : "Preparación completa"}</span>
+          <span className="sr-only">{miss.length ? waitReason(p, lk.prepItems) : "Preparación completa"}</span>
         </span>
         <span role="cell" className={`${cell} min-w-0 px-3`}><span className="truncate text-ink-2" title={p.place}>{p.place}</span></span>
         <span role="cell" className={`${cell} px-2.5`}>
@@ -265,7 +260,7 @@ export const CompactRow = memo(function CompactRow({ p, index, selected, lk, onO
       <span className={`${cell} px-3`}>
         <span className="whitespace-nowrap rounded-md px-2 py-1 text-xs font-bold" style={{ background: status?.bg, color: status?.fg }}>{status?.name}</span>
       </span>
-      <span className={`flex items-center whitespace-nowrap px-3 text-[13px] ${dates ? "text-ink-2" : "text-faint"}`}>{dates || waitReason(p)}</span>
+      <span className={`flex items-center whitespace-nowrap px-3 text-[13px] ${dates ? "text-ink-2" : "text-faint"}`}>{dates || waitReason(p, lk.prepItems)}</span>
     </button>
   );
 });

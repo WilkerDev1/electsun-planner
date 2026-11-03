@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { isoDate } from "./common.js";
 import type { MuralModel } from "../mural-model.js";
+import type { CompanyPattern } from "../pattern.js";
 
 export const MuralSettings = z.object({
   design: z.enum(["principal", "timeline"]),
@@ -28,7 +29,7 @@ export type MuralView = {
   generatedAt: string;
   settings: MuralSettings;
   model: MuralModel;
-  companies: { id: string; name: string; code: string; color: string }[];
+  companies: { id: string; name: string; code: string; color: string; pattern: CompanyPattern; logo_url: string | null }[];
   teams: { id: string; code: string; name: string; color: string | null }[];
 };
 

@@ -1,8 +1,17 @@
 // Modelo de la vista móvil (CAL-09, GET /api/view/movil). Lo calcula `mobileModel` en shared/movil-model.ts
 // y lo pintan las pantallas de src/movil. Solo contiene lo que el empleado puede ver (MOV-08).
 import type { EmployeeState, ISODate, Level } from "../domain.js";
+import type { CompanyPattern } from "../pattern.js";
 
-export type MovilCompany = { name: string; code: string; color: string };
+export type MovilCompany = {
+  name: string;
+  code: string;
+  color: string;
+  /** Patrón del color (EQP-08). */
+  pattern: CompanyPattern;
+  /** Logotipo de la empresa, que sustituye al monograma (EQP-07); null si no tiene. */
+  logo_url: string | null;
+};
 
 /** Persona de un equipo. `phone` solo viene para quien el empleado puede llamar (MOV-08). */
 export type MovilPerson = {
@@ -62,6 +71,8 @@ export type MovilJob = {
 
 export type SegmentState = "done" | "today" | "todo";
 
+export type MovilPrepItem = { code: string; name: string; done: boolean; applies: boolean };
+
 export type MovilDetail = MovilJob & {
   /** Un bloque por día laborable de la obra. */
   segments: SegmentState[];
@@ -72,6 +83,8 @@ export type MovilDetail = MovilJob & {
   /** Preparación pendiente: "Espera planos y material", o "Lista". */
   prep_text: string;
   prep_ready: boolean;
+  /** Parámetros de preparación que lleva la obra; `applies: false` se muestra apagado y no cuenta como pendiente. */
+  prep: MovilPrepItem[];
   /** Enlace a Google Maps con el lugar; null si no hay lugar. */
   map_url: string | null;
   lead: MovilContact | null;

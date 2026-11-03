@@ -4,10 +4,10 @@ import type { HistoryEntry, Project } from "../../../shared/contracts/projects";
 import type { Status } from "../../../shared/contracts/statuses";
 import {
   addDays, dayLabel, lateDays, mondayOf, parseKwp, placeBar, plural, rangeLabel, shortDate, teamClash,
-  waitReason, workdayIndex, missingPrep,
+  waitReason, waitLabel, prepRows, workdayIndex, missingPrep,
 } from "../../../shared/domain";
 import { AutoArea, AutoDate, AutoText } from "./inputs";
-import { ago, describeChange, isClashWarning, isLateWarning, teamLabel, type Catalogs, type EditPatch, type Lookup } from "./model";
+import { ago, describeChange, isClashWarning, isLateWarning, teamLabel, toggledPrep, type Catalogs, type EditPatch, type Lookup } from "./model";
 import { Monogram } from "./Table";
 import type { SaveState } from "./store";
 
@@ -128,12 +128,10 @@ export function Panel({ project: p, catalogs, lk, rows, today, isAdmin, save, la
   }
 
   // ----- Preparación (CAL-07) -----
-  const miss = missingPrep(p);
-  const prepItems = [
-    { key: "prep_plans", title: "Planos y BOM", hint: "Plano de instalación y lista de materiales" },
-    { key: "prep_materials", title: "Materiales completos", hint: "Almacén confirma que está todo" },
-    { key: "prep_ede", title: "Carta de no objeción", hint: p.system_type === "neta" ? "La EDE aprobó la medición neta" : "No aplica a sistemas híbridos" },
-  ] as const;
+  const miss = missingPrep(p, catalogs.prepItems);
+  const prepItems = prepRows(p, catalogs.prepItems).map(({ item, applies, done }) => ({
+    key: item.id, title: item.name, applies, done, hint: applies ? `Si falta: ${waitLabel(item.pending_label)}` : "No aplica a este tipo de sistema",
+  }));
 
   // ----- Programación y vista previa (CAL-03, CAL-05, PRY-07) -----
   const teams = catalogs.teams.filter((t) => t.active || t.id === p.team_id);
@@ -280,7 +278,7 @@ export function Panel({ project: p, catalogs, lk, rows, today, isAdmin, save, la
           title="Preparación"
           aside={
             <span className="rounded-md px-2 py-0.5 text-xs font-bold" style={{ color: miss.length ? "#B54708" : "#157F3D", background: miss.length ? "#FFFAEB" : "#E7F7EE" }}>
-              {miss.length ? waitReason(p) : "Completa"}
+              {miss.length ? waitReason(p, catalogs.prepItems) : "Completa"}
             </span>
           }
         >
@@ -302,8 +300,8 @@ export function Panel({ project: p, catalogs, lk, rows, today, isAdmin, save, la
               })}
             </div>
             {prepItems.map((c) => {
-              const na = c.key === "prep_ede" && p.system_type !== "neta";
-              const ok = !na && p[c.key];
+              const na = !c.applies;
+              const ok = !na && c.done;
               return (
                 <button
                   key={c.key}
@@ -311,7 +309,7 @@ export function Panel({ project: p, catalogs, lk, rows, today, isAdmin, save, la
                   role="checkbox"
                   aria-checked={ok}
                   disabled={na}
-                  onClick={() => patch({ [c.key]: !p[c.key] })}
+                  onClick={() => patch({ prep: toggledPrep(p, c.key) })}
                   className="flex min-h-11 items-center gap-2.5 rounded-[10px] border px-2.5 py-1.5 text-left"
                   style={{ background: na ? "#F9FAFB" : "#FFFFFF", borderColor: na ? "#F0F1F4" : ok ? "#D7EFE0" : "#F6DDB3", cursor: na ? "default" : "pointer" }}
                 >
