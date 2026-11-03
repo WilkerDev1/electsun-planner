@@ -15,9 +15,9 @@ import {
 // Tabla tipo Excel (PRY-02, PRY-03) y lista compacta cuando el panel de edición está abierto (V4Proyectos).
 
 export const COLUMNS = "40px 44px 44px 170px minmax(210px, 1fr) 76px 104px 230px 150px 96px 134px 134px 250px 220px 124px";
-/** Ancho mínimo de la tabla: la suma de las columnas con el mínimo de «Proyecto». */
 /** Donde empieza la columna «Proyecto»: la suma de las cuatro columnas anteriores (casilla, #, prioridad, empresa). */
 export const PROJECT_COL_LEFT = COLUMNS.split(" ").slice(0, 4).reduce((sum, w) => sum + parseInt(w, 10), 0);
+/** Ancho mínimo de la tabla: la suma de las columnas con el mínimo de «Proyecto». */
 export const TABLE_MIN_WIDTH = 2026;
 const cell = "flex items-center border-r border-line";
 

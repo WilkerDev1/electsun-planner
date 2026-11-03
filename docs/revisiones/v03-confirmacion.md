@@ -156,3 +156,5 @@ Pendientes del informe, resueltos en la rama `integ/v03`:
 Cambio de prueba adicional: la prueba del Excel con el parámetro heredado «Parte» buscaba «Kevin Almánzar» solo por nombre y dependía del orden del listado; ahora lo busca también por la parte «pieza A».
 
 Comprobado: `npm run typecheck`, `npm test` (176 de 176, con la base de pruebas recreada), `npx vite build` y `npx playwright test e2e/v03-proyectos.spec.ts` (3 de 3).
+
+Playwright completo (`npx playwright test`): 17 de 17.
