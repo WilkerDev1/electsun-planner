@@ -2,6 +2,8 @@ import type { CSSProperties } from "react";
 import { longDate } from "../../shared/domain";
 import { shortName, type MuralModel, type TimelineGroup, type TimelineRow, type WaitingItem } from "../../shared/mural-model";
 import { ACCENT, Clock, FONT, Flag, SunLogo, TODAY_COLOR, ellipsis, pct, updatedText, type ScreenProps } from "./shared";
+import { PatternDot } from "./Mark";
+import type { CompanyPattern } from "../../shared/pattern";
 
 // Diseño "timeline por fila" (design/v4/V4Mural.dc.html, MUR-08): una fila por proyecto activo con su barra.
 
@@ -37,7 +39,7 @@ export function Timeline({ view, live }: ScreenProps) {
       }}
     >
       <Header model={model} showClock={settings.show_clock} live={live} today={view.today} />
-      <Board model={model} groups={groups} />
+      <Board model={model} groups={groups} patterns={new Map(view.companies.map((c) => [c.color.toUpperCase(), c.pattern]))} />
       {footer && <Footer model={model} show={settings.show_waiting} />}
     </div>
   );
@@ -91,7 +93,7 @@ function Header({ model, showClock, live, today }: { model: MuralModel; showCloc
   );
 }
 
-function Board({ model, groups }: { model: MuralModel; groups: Fitted[] }) {
+function Board({ model, groups, patterns }: { model: MuralModel; groups: Fitted[]; patterns: Map<string, CompanyPattern> }) {
   const t = model.timeline;
   const { cols, weeks } = t;
   const head: CSSProperties = { fontSize: 22, fontWeight: 700, color: "#5F6675", paddingBottom: 10 };
@@ -118,13 +120,13 @@ function Board({ model, groups }: { model: MuralModel; groups: Fitted[] }) {
       </div>
       {empty && <p style={{ margin: 0, padding: "40px 8px", fontSize: 26, fontWeight: 600, color: "#5F6675" }}>No hay instalaciones en obra ni programadas por ahora.</p>}
       {groups.map((f) => (
-        <GroupRows key={f.group.key} f={f} cols={cols} weeks={weeks} todayCol={t.todayCol} todayAt={todayAt} />
+        <GroupRows key={f.group.key} patterns={patterns} f={f} cols={cols} weeks={weeks} todayCol={t.todayCol} todayAt={todayAt} />
       ))}
     </section>
   );
 }
 
-function GroupRows({ f, cols, weeks, todayCol, todayAt }: { f: Fitted; cols: number; weeks: number; todayCol: number | null; todayAt: number | null }) {
+function GroupRows({ f, patterns, cols, weeks, todayCol, todayAt }: { f: Fitted; patterns: Map<string, CompanyPattern>; cols: number; weeks: number; todayCol: number | null; todayAt: number | null }) {
   const g = f.group;
   const size = SIZE[g.key];
   const rowH = Math.round(size.row * f.scale);
@@ -165,7 +167,7 @@ function GroupRows({ f, cols, weeks, todayCol, todayAt }: { f: Fitted; cols: num
               {r.priority && <Flag size={24} />}
             </span>
             <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 22, fontWeight: 600, color: "#5F6675", ...ellipsis }}>
-              <span style={{ width: 10, height: 10, flexShrink: 0, borderRadius: "50%", background: r.dot }} />
+              <PatternDot color={r.dot} pattern={patterns.get(r.dot.toUpperCase())} size={20} />
               <span style={ellipsis}>{r.place}</span>
             </span>
           </span>
