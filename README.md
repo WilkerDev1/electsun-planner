@@ -19,6 +19,11 @@ bash ops/local.sh
 
 Abre http://localhost:8091 (si el puerto está ocupado, ejecuta `HTTP_PORT=8093 bash ops/local.sh` la primera vez). Las cuentas de demo (administrador y oficina) y sus contraseñas están en `.env`, que se genera la primera vez y no se sube a git.
 
+### Cuenta inicial y red
+
+- `BOOTSTRAP_PASSWORD` es **opcional**. Solo se usa en el primer arranque, cuando no existe ningún usuario, para crear al administrador. Después de ese arranque, **quítala del `.env`**: no hace falta guardarla y el servidor la ignora si ya hay usuarios.
+- `BEHIND_CLOUDFLARE` (Caddy): `true` por defecto en `compose.yaml`; detrás del túnel de Cloudflare toda petición debe traer `Cf-Connecting-Ip` y las demás reciben 403. `compose.local.yaml` lo pone en `false` (demo sin Cloudflare): ahí se ignora esa cabecera y se usa la IP real de la conexión.
+
 ## Desarrollo
 
 ```bash
@@ -26,7 +31,7 @@ npm install
 bash ops/test-db.sh        # PostgreSQL de pruebas en 127.0.0.1:5544
 npm run typecheck
 npm test                   # unitarias + integración contra planner_test
-npx playwright test        # E2E (oficina → TV por SSE → móvil, revocación, importación)
+npx playwright test        # E2E: flujo completo, accesibilidad (axe), PWA, mural sin conexión, panel de edición, cuentas
 ```
 
 Para trabajar con recarga en caliente, crea `.env` a partir de `.env.example` con `DATABASE_URL` y `PORT=8092`, y ejecuta `npm run server` y `npm run dev` (Vite en http://127.0.0.1:5173, con proxy a la API).

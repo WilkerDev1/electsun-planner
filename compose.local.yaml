@@ -4,3 +4,7 @@ services:
     build:
       context: .
       network: host
+  # Sin Cloudflare: Caddy usa la IP real del cliente en vez de Cf-Connecting-Ip.
+  caddy:
+    environment:
+      BEHIND_CLOUDFLARE: "false"
