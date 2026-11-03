@@ -294,7 +294,7 @@ export function muralModel(input: MuralInput, settings: MuralSettings, today: IS
       progress = {
         text: late ? lateText(late) : d.text,
         endText: late
-          ? `debía terminar ${endLabel}`
+          ? `venció ${endLabel}`
           : endIn === null
             ? ""
             : endIn === 0
@@ -455,7 +455,7 @@ export function muralModel(input: MuralInput, settings: MuralSettings, today: IS
       const endIn = p.end_date ? diffDays(today, p.end_date) : null;
       when = late ? lateText(late) : d.text;
       whenSub = late
-        ? `debía terminar ${endText}`
+        ? `venció ${endText}`
         : endIn === null
           ? ""
           : endIn === 0
