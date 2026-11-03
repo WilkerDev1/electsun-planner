@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "../../ui/api";
-import type { Project } from "../../../shared/contracts/projects";
+import type { ArchiveBulkResult, Project } from "../../../shared/contracts/projects";
 import type { Status } from "../../../shared/contracts/statuses";
 import type { Company, Employee, Team } from "../../../shared/contracts/equipo";
 import type { PrepItem } from "../../../shared/contracts/prep";
@@ -25,7 +25,6 @@ export function useProjects(today: string, notify: (message: string, tone?: "ok"
   const [save, setSave] = useState<SaveState>("idle");
   const [lastError, setLastError] = useState<string | null>(null);
   const [serverWarnings, setServerWarnings] = useState<Record<string, string[]>>({});
-  const [showArchived, setShowArchived] = useState(false);
 
   const confirmed = useRef(new Map<string, Project>());
   const queues = useRef(new Map<string, Queue>());
@@ -34,13 +33,11 @@ export function useProjects(today: string, notify: (message: string, tone?: "ok"
   const statusesRef = useRef<Map<string, Status>>(new Map());
   const notifyRef = useRef(notify);
   notifyRef.current = notify;
-  const archivedRef = useRef(showArchived);
-  archivedRef.current = showArchived;
 
   const loadSeq = useRef(0);
   const loadProjects = useCallback(async () => {
     const seq = ++loadSeq.current;
-    const list = await api<Project[]>(`/projects${archivedRef.current ? "?archived=1" : ""}`);
+    const list = await api<Project[]>("/projects?archived=1");
     // Solo vale la última carga, y nunca mientras haya un guardado optimista en vuelo.
     if (seq !== loadSeq.current || inflight.current > 0) return;
     confirmed.current = new Map(list.map((p) => [p.id, p]));
@@ -87,14 +84,6 @@ export function useProjects(today: string, notify: (message: string, tone?: "ok"
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [loadProjects]);
-
-  // Solo al activar o desactivar "Mostrar archivados" (la primera carga ya la hace loadAll).
-  const shownArchived = useRef(showArchived);
-  useEffect(() => {
-    if (shownArchived.current === showArchived) return;
-    shownArchived.current = showArchived;
-    void loadProjects().catch(() => undefined);
-  }, [showArchived, loadProjects]);
 
   /** Vuelve a pedir una fila (tras un 409 o para abrir un proyecto archivado). */
   const refreshRow = useCallback(async (id: string) => {
@@ -213,6 +202,23 @@ export function useProjects(today: string, notify: (message: string, tone?: "ok"
     [refreshRow],
   );
 
+  /** Archiva o restaura varios proyectos de una vez (PRY-10b). Devuelve cuántos cambiaron, o null si falló. */
+  const archiveMany = useCallback(async (ids: string[], archived: boolean): Promise<number | null> => {
+    try {
+      lastActivity.current = Date.now();
+      const out = await api<ArchiveBulkResult>("/projects/archive-bulk", { body: { ids, archived } });
+      lastActivity.current = Date.now();
+      const byId = new Map(out.projects.map((p) => [p.id, strip(p)]));
+      for (const [id, p] of byId) confirmed.current.set(id, p);
+      setRows((prev) => (prev ? prev.map((r) => byId.get(r.id) ?? r) : prev));
+      return out.changed;
+    } catch (e) {
+      notifyRef.current(e instanceof ApiError ? e.message : "No se pudo completar la acción.", "danger");
+      await loadProjects().catch(() => undefined);
+      return null;
+    }
+  }, [loadProjects]);
+
   return {
     rows,
     catalogs,
@@ -220,11 +226,10 @@ export function useProjects(today: string, notify: (message: string, tone?: "ok"
     save,
     lastError,
     serverWarnings,
-    showArchived,
-    setShowArchived,
     patch,
     create,
     setArchived,
+    archiveMany,
     refreshRow,
     reload: loadAll,
     reloadProjects: loadProjects,
