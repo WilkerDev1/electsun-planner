@@ -255,7 +255,7 @@ Referencia: `V4EquipoTablas.dc.html` (pestañas Empleados, Equipos de obra, Empr
 
 **AVI-02 [M]** Avisos generales: texto ≤ 140 caracteres, `starts_on`, `expires_on`, orden. Se gestionan en Mural · Configuración.
 
-**AVI-03 [M]** El mural muestra como mucho 3 avisos a la vez (los generales primero, luego las observaciones por prioridad), estáticos, sin texto en movimiento.
+**AVI-03 [M]** El mural muestra hasta 12 avisos (los generales primero, luego las observaciones por prioridad). Los que no caben rotan y ninguno se corta: en el pie del principal, en una línea de marquesina; en el timeline, en páginas medidas por altura real (un aviso largo se reparte en trozos que caben). Los que pasan del tope de 12 se cuentan en "+N más". Con movimiento reducido, un trozo cada vez (ver MUR-14).
 
 ### 4.7 Mural TV (MUR)
 
@@ -269,17 +269,17 @@ Referencia: `V4MuralPrincipal.dc.html` (diseño principal) y `V4Mural.dc.html` (
 - **Por programar**: `por_programar` + `en_pausa`.
 - **Terminados del mes**: `actual_end` en el mes actual.
 
-**MUR-03 [M]** Diseño principal, columna izquierda "Proyectos activos": `en_obra` primero (barra "Día X de N" o "Atrasada · +N días" en ámbar), luego `programado` ("Inicia hoy", "Inicia mañana", "Inicia en N días", en días naturales; "Debía iniciar el …" si el inicio ya pasó). Una obra en curso sin fin se trata como fin = inicio. Como mucho 7 filas y "y N más". Orden según la configuración: por fecha, o con prioridad primero. Bandera de prioridad si está activa.
+**MUR-03 [M]** Diseño principal, columna izquierda "Proyectos activos": `en_obra` primero (barra "Día X de N" o "Atrasada · +N días" en ámbar), luego `programado` ("Inicia hoy", "Inicia mañana", "Inicia en N días", en días naturales; "Debía iniciar el …" si el inicio ya pasó). Una obra en curso sin fin se trata como fin = inicio. Las filas pasan de página de 7 en 7, con indicador "1/N" (MUR-14). Orden según la configuración: por fecha, o con prioridad primero. Bandera de prioridad si está activa.
 
-**MUR-04 [M]** Diseño principal, columna derecha: "Calendario por equipo" con N semanas (2, 3 o 4) de lunes a sábado, una fila por equipo activo, línea de "hoy" naranja `#C2410C`, barras con la regla de etiqueta de CAL-03 y el exceso de atraso como tramo ámbar discontinuo.
+**MUR-04 [M]** Diseño principal, columna derecha: "Calendario por equipo" con N semanas (2, 3 o 4) de lunes a sábado, una fila por equipo activo, línea de "hoy" naranja `#C2410C`, barras con la regla de etiqueta de CAL-03 y el exceso de atraso como tramo ámbar discontinuo. Ninguna barra se corta: cada fila mide al menos 30 px; si los equipos no caben, el calendario pasa de página por equipos (un equipo con muchas barras se parte y repite su nombre), con indicador "1/N" (MUR-14).
 
-**MUR-05 [M]** Debajo, "Por programar": hasta 6 proyectos con su motivo de espera (CAL-07) o "lista", y los `en_pausa` con su motivo.
+**MUR-05 [M]** Debajo, "Por programar": hasta 30 proyectos con su motivo de espera (CAL-07) o "lista", y los `en_pausa` con su motivo. Cada ficha lleva el nombre arriba y el motivo debajo, completo (si no cabe en una línea ocupa varias; el motivo nunca se corta). Las fichas pasan de página con el alto de la lista fijo, y el resto se cuenta en "+N".
 
-**MUR-06 [M]** Lista "Esperando medidor": proyectos `post_obra` con lugar y "terminada el …".
+**MUR-06 [M]** Lista "Esperando medidor": proyectos `post_obra` con lugar y "terminada el …". Va en una línea de marquesina: cada elemento sale completo, con el nombre en negrita, luego lugar y fecha (MUR-14 con movimiento reducido).
 
 **MUR-07 [M]** Pie: avisos (AVI-03) y "Actualizado hh:mm".
 
-**MUR-08 [M]** Diseño timeline: una fila por proyecto activo con datos a la izquierda y la barra en un timeline de N semanas.
+**MUR-08 [M]** Diseño timeline: una fila por proyecto activo con datos a la izquierda y la barra en un timeline de N semanas. Las filas que no caben pasan de página por grupo (con la etiqueta repetida si el grupo sigue) y "Esperando fecha" muestra 4 fichas por página (2 × 2), con el nombre y los días completos (nombre en dos líneas si hace falta).
 
 **MUR-09 [M]** Configuración (`V4Config.dc.html`, ruta `/mural`): diseño (principal o timeline), semanas (2, 3, 4), orden de próximos (fecha o prioridad primero), interruptores (Por programar, Observaciones, Bandera de prioridad, Reloj, kWp; kWp apagado por defecto), avisos generales, enlaces de TV y una vista previa en vivo escalada.
 
@@ -290,6 +290,12 @@ Referencia: `V4MuralPrincipal.dc.html` (diseño principal) y `V4Mural.dc.html` (
 **MUR-12 [M]** A medianoche (zona local) recalcula "hoy" aunque no lleguen cambios.
 
 **MUR-13 [M]** Paleta: el naranja se reserva para la marca y "hoy"; En pausa en magenta; colores de empresa solo en el punto y el monograma.
+
+**MUR-14 [M] Rotación de lo que no cabe**: nada que no quepa se oculta tras "y N más" ni se corta con puntos suspensivos.
+- Lo horizontal (una línea de avisos o de medidores) va en marquesina: se desplaza de derecha a izquierda a 60 px/s, subiendo hasta 90 px/s si una vuelta tardaría más de 60 s; pausa de 2 s al empezar cada vuelta; copia duplicada `aria-hidden`; se queda quieta si cabe.
+- Lo vertical (listas, rejillas, calendario, avisos del timeline) pasa de página cada 8 s, con fundido y deslizamiento de 400 ms. El indicador "1/N" (22 px) solo aparece con más de una página. Si llegan datos nuevos no vuelve a la página 1, y la página no se reinicia si el contenido es el mismo. Se pausa cuando la pestaña no está visible.
+- Con movimiento reducido (`prefers-reduced-motion: reduce`): sin deslizamientos ni marquesina; cada página o elemento cambia sin animación cada 10 s. Un elemento largo se reparte en trozos que caben, nunca se corta.
+- Las medidas salen del navegador, en el ancho real del hueco, no de una estimación por caracteres.
 
 ### 4.8 Móvil (MOV)
 
