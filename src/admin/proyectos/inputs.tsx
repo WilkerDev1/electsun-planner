@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ComponentProps } from "react";
+import { useCallback, useEffect, useRef, useState, type ComponentProps } from "react";
 
 // Campos con guardado automático: el texto se ve al instante y se envía al dejar de escribir o al salir del campo.
 
@@ -16,13 +16,13 @@ function useDraft({ value, commit, delay, valid }: Draft) {
     if (!focused.current) setDraft(value);
   }, [value]);
 
-  const flush = () => {
+  const flush = useCallback(() => {
     clearTimeout(timer.current);
     const { draft: d, value: v, commit: c, valid: ok } = latest.current;
     if (d !== v && (!ok || ok(d))) c(d);
-  };
+  }, []);
   // Al desmontar (cerrar el panel, cambiar de proyecto) se guarda lo pendiente.
-  useEffect(() => () => flush(), []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => flush, [flush]);
 
   return {
     value: draft,

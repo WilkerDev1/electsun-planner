@@ -87,22 +87,29 @@ function Bar({ bar, nextFree }: { bar: TimelineBar; nextFree: number }) {
   const color = bar.kind === "en_obra" ? "#16A34A" : "#4F63D8";
   const radius = `${bar.clip_start ? "0" : "8px"} ${bar.clip_end ? "0" : "8px"} ${bar.clip_end ? "0" : "8px"} ${bar.clip_start ? "0" : "8px"}`;
   return (
-    <div className="relative h-10">
+    // Fila de 44 px (MOV-06): el enlace ocupa toda la altura y la barra de 30 px se dibuja dentro.
+    <div className="relative h-11">
       <Link
         to={jobLink(bar.id)}
         state={fromState("Calendario")}
         aria-label={`${bar.name}, ${bar.dates_text}${bar.overrun ? ", atrasada" : ""}`}
-        className="absolute top-[5px] flex h-[30px] items-center overflow-clip border-[1.5px] p-0 text-ink no-underline"
-        style={{ left, width, borderColor: color, borderRadius: radius, background: bar.kind === "en_obra" ? "#DCF3E5" : "#E9EDFF" }}
+        className="absolute top-0 flex h-11 items-center overflow-clip p-0 text-ink no-underline"
+        style={{ left, width }}
       >
-        <span aria-hidden className="absolute inset-y-0 left-0" style={{ width: `${(bar.done_cols / bar.span) * 100}%`, background: "#A6E0BD" }} />
+        <span
+          aria-hidden
+          className="absolute inset-x-0 top-[7px] h-[30px] overflow-clip border-[1.5px]"
+          style={{ borderColor: color, borderRadius: radius, background: bar.kind === "en_obra" ? "#DCF3E5" : "#E9EDFF" }}
+        >
+          <span className="absolute inset-y-0 left-0" style={{ width: `${(bar.done_cols / bar.span) * 100}%`, background: "#A6E0BD" }} />
+        </span>
         {/* overflow-clip (no hidden) deja que el nombre quede fijo junto a la columna de equipos al deslizar. */}
         {inside && <span className="sticky truncate px-2.5 text-[14px] font-bold" style={{ left: GUT }}>{bar.name}</span>}
       </Link>
       {bar.overrun && (
         <span
           aria-hidden
-          className="absolute top-[5px] h-[30px] rounded-r-lg border-[1.5px] border-l-0 border-dashed border-[#F59E0B]"
+          className="absolute top-[7px] h-[30px] rounded-r-lg border-[1.5px] border-l-0 border-dashed border-[#F59E0B]"
           style={{
             left: bar.overrun.col * COL - 3,
             width: bar.overrun.span * COL,
@@ -113,7 +120,7 @@ function Bar({ bar, nextFree }: { bar: TimelineBar; nextFree: number }) {
       {!inside && (
         <span
           aria-hidden
-          className="pointer-events-none absolute top-[5px] flex h-[30px] items-center whitespace-nowrap text-[14px] font-bold"
+          className="pointer-events-none absolute top-[7px] flex h-[30px] items-center whitespace-nowrap text-[14px] font-bold"
           style={fitsRight ? { left: endX + 6 } : { right: (18 - bar.col) * COL + 6 }}
         >
           {bar.name}

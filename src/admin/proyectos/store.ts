@@ -86,11 +86,13 @@ export function useProjects(today: string, notify: (message: string, tone?: "ok"
     };
   }, [loadProjects]);
 
+  // Solo al activar o desactivar "Mostrar archivados" (la primera carga ya la hace loadAll).
+  const shownArchived = useRef(showArchived);
   useEffect(() => {
-    if (catalogs) void loadProjects().catch(() => undefined);
-    // Solo al activar o desactivar "Mostrar archivados".
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showArchived]);
+    if (shownArchived.current === showArchived) return;
+    shownArchived.current = showArchived;
+    void loadProjects().catch(() => undefined);
+  }, [showArchived, loadProjects]);
 
   /** Vuelve a pedir una fila (tras un 409 o para abrir un proyecto archivado). */
   const refreshRow = useCallback(async (id: string) => {

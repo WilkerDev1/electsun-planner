@@ -64,7 +64,7 @@ export function Toggle({ on, onChange, label, disabled }: { on: boolean; onChang
       aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!on)}
-      className={`inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors disabled:opacity-50 ${on ? "justify-end bg-navy" : "justify-start bg-line-2"}`}
+      className={`inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors disabled:opacity-50 ${on ? "justify-end bg-navy" : "justify-start bg-faint"}`}
     >
       <span className="size-6 rounded-full bg-white shadow" />
     </button>

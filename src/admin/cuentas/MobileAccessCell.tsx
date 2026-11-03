@@ -3,7 +3,7 @@ import { api, ApiError } from "../../ui/api";
 import type { Employee } from "../../../shared/contracts/equipo";
 import type { LinkSecret } from "../../../shared/contracts/access";
 import { LinkSecretDialog } from "./LinkSecretDialog";
-import { ConfirmDialog } from "./Modal";
+import { ConfirmDialog } from "../../ui/Modal";
 
 const STATUS = {
   none: { label: "Sin enlace", fg: "#475467", bg: "#F2F4F7" },

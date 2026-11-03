@@ -41,7 +41,7 @@ function Switch({ on, onChange, label, disabled, describedBy }: { on: boolean; o
       aria-describedby={describedBy}
       disabled={disabled}
       onClick={() => onChange(!on)}
-      className={`flex h-6 w-10 shrink-0 items-center rounded-full border-0 p-[3px] disabled:opacity-50 ${on ? "justify-end bg-navy" : "justify-start bg-line-2"} ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
+      className={`flex h-6 w-10 shrink-0 items-center rounded-full border-0 p-[3px] disabled:opacity-50 ${on ? "justify-end bg-navy" : "justify-start bg-faint"} ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
     >
       <span className="size-[18px] rounded-full bg-white shadow-[0_1px_2px_rgba(16,24,40,0.2)]" />
     </button>
@@ -112,9 +112,13 @@ export function Panel({ project: p, catalogs, lk, rows, today, isAdmin, save, la
       onPatch(p.id, { status_id: draft.id });
     }
   }, [draft, draftMissing.length, onPatch, p.id]);
+  // Al elegir un estado que pide motivo, el foco va al campo; el motivo se lee por ref para no robar el foco al escribir.
+  const reasonEmpty = useRef(false);
+  reasonEmpty.current = !p.pause_reason.trim();
+  const draftNeedsReason = !!draft?.requires_reason;
   useEffect(() => {
-    if (draft?.requires_reason && !p.pause_reason.trim()) reasonRef.current?.focus();
-  }, [draft?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (draftNeedsReason && reasonEmpty.current) reasonRef.current?.focus();
+  }, [draft?.id, draftNeedsReason]);
 
   function pickStatus(s: Status) {
     if (s.id === p.status_id) return setDraftStatus(null);

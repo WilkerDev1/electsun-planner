@@ -4,7 +4,8 @@ import { Banner, Button, Empty, Field, Toggle } from "../../ui/components";
 import { BRAND, colorDistance, fold, plural } from "../../../shared/domain";
 import type { Company } from "../../../shared/contracts/equipo";
 import { ICON, companyCounts, monogram, type TabProps } from "./model";
-import { IconButton, Modal, Svg, inputCls } from "./ui";
+import { IconButton, Svg, inputCls } from "./ui";
+import { Modal } from "../../ui/Modal";
 
 const GRID = "grid items-center grid-cols-[minmax(240px,1fr)_340px_100px_130px_90px_100px_52px]";
 const CLOSE = 60; // misma distancia que usa el servidor (EQP-05)
@@ -176,7 +177,7 @@ function CompanyDialog({ company, all, onClose, onSaved }: { company: Company | 
     <Modal title={company ? `Editar ${company.name}` : "Agregar empresa"} onClose={onClose}>
       <form onSubmit={submit} className="flex flex-col gap-3">
         <Field label="Nombre">
-          <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} autoFocus />
+          <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} data-autofocus />
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Sigla" hint="2 letras o números, única.">

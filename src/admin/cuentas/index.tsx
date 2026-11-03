@@ -5,7 +5,7 @@ import { Banner, Button, Empty, PageHeader, Segmented, initials, useFlash } from
 import { TextField } from "../../auth/TextField";
 import type { Account, ActivationLink, Role } from "../../../shared/contracts/auth";
 import { LinkSecretDialog, type LinkSecretDialogProps } from "./LinkSecretDialog";
-import { ConfirmDialog, Modal } from "./Modal";
+import { ConfirmDialog, Modal } from "../../ui/Modal";
 
 // Cuentas (AUT-03..06, AUT-08): lista, invitar, cambiar rol, desactivar y restablecer. Solo administración.
 

@@ -4,7 +4,8 @@ import { Banner, Button, Empty, Field, Toggle, initials } from "../../ui/compone
 import { fold, plural } from "../../../shared/domain";
 import type { Employee, Team } from "../../../shared/contracts/equipo";
 import { ICON, STATE_STYLE, teamAgenda, type EquipoData, type TabProps } from "./model";
-import { Avatar, IconButton, Modal, Svg, inputCls } from "./ui";
+import { Avatar, IconButton, Svg, inputCls } from "./ui";
+import { Modal } from "../../ui/Modal";
 
 const GRID = "grid items-center grid-cols-[210px_210px_minmax(240px,1fr)_230px_190px_52px]";
 const LEAD_LEVELS = ["Encargado", "Supervisor"];
@@ -180,7 +181,7 @@ function TeamDialog({ team, data, onClose, onSaved }: { team: Team | null; data:
       <form onSubmit={submit} className="flex flex-col gap-3">
         <div className="grid grid-cols-[110px_1fr] gap-3">
           <Field label="Código">
-            <input className={inputCls} value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} required pattern="E[1-9][0-9]?" title="E1 a E99" maxLength={3} autoFocus={!team} />
+            <input className={inputCls} value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} required pattern="E[1-9][0-9]?" title="E1 a E99" maxLength={3} data-autofocus={!team || undefined} />
           </Field>
           <Field label="Nombre">
             <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} placeholder="Equipo 4" />
