@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode, type SelectHTMLAttributes } from "react";
+import type { ReactNode, SelectHTMLAttributes } from "react";
 import { ICON } from "./model";
 
 // Piezas propias de la pantalla Equipo (V4EquipoTablas).
@@ -76,35 +76,6 @@ export function IconButton({ label, onClick, children }: { label: string; onClic
     >
       {children}
     </button>
-  );
-}
-
-/** Diálogo modal nativo: foco atrapado, Esc cierra y `aria-labelledby` con el título. */
-export function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const d = ref.current;
-    if (d && !d.open) d.showModal();
-    return () => d?.close();
-  }, []);
-  return (
-    <dialog
-      ref={ref}
-      aria-labelledby="equipo-modal-title"
-      onCancel={(e) => {
-        e.preventDefault();
-        onClose();
-      }}
-      onClick={(e) => e.target === ref.current && onClose()}
-      className={`m-auto w-[calc(100%-32px)] rounded-[22px] border border-line bg-card p-0 text-ink shadow-[var(--shadow-card)] backdrop:bg-black/40 ${wide ? "max-w-[560px]" : "max-w-[460px]"}`}
-    >
-      <div className="flex flex-col gap-4 p-6">
-        <h2 id="equipo-modal-title" className="m-0 text-xl font-extrabold tracking-tight">
-          {title}
-        </h2>
-        {children}
-      </div>
-    </dialog>
   );
 }
 

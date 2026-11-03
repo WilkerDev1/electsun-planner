@@ -87,7 +87,6 @@ export const Row = memo(function Row({ p, index, selected, warn, today, isAdmin,
     <>
       <div
         role="row"
-        aria-selected={selected}
         className={`grid h-[46px] border-b border-line text-sm ${p.archived ? "opacity-70" : ""}`}
         style={{ gridTemplateColumns: COLUMNS, background: bg, contentVisibility: "auto", containIntrinsicSize: "auto 46px" }}
       >
@@ -102,7 +101,7 @@ export const Row = memo(function Row({ p, index, selected, warn, today, isAdmin,
             onClick={() => onPatch(p.id, { priority: !p.priority })}
             className={`flex size-7 items-center justify-center rounded-[7px] border-0 ${p.priority ? "bg-navy" : "bg-transparent"} ${isAdmin ? "cursor-pointer" : "cursor-default"}`}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill={p.priority ? "#FFFFFF" : "none"} stroke={p.priority ? "#FFFFFF" : "#98A2B3"} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 21V4M5 4h11l-2 4 2 4H5" /></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill={p.priority ? "#FFFFFF" : "none"} stroke={p.priority ? "#FFFFFF" : "#667085"} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 21V4M5 4h11l-2 4 2 4H5" /></svg>
           </button>
         </span>
         <span role="cell" className={`${cell} min-w-0 gap-2 px-3`}>
@@ -111,7 +110,7 @@ export const Row = memo(function Row({ p, index, selected, warn, today, isAdmin,
         </span>
         <span role="cell" className={`${cell} min-w-0 px-1.5`}>
           <AutoText
-            aria-label={`Proyecto ${index + 1}`}
+            aria-label={`Nombre: ${p.name}`}
             value={p.name}
             valid={(v) => v.trim().length > 0}
             onCommit={(v) => onPatch(p.id, { name: v.trim() })}
@@ -216,7 +215,7 @@ export const Row = memo(function Row({ p, index, selected, warn, today, isAdmin,
               className="flex size-[26px] shrink-0 items-center justify-center rounded-md border"
               style={{ background: p.show_on_mural ? "#FFF4EC" : "#FFFFFF", borderColor: p.show_on_mural ? "#F6C9A8" : "#EAECF0" }}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={p.show_on_mural ? "#C2410C" : "#98A2B3"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><rect x="2.5" y="4" width="19" height="13" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={p.show_on_mural ? "#C2410C" : "#667085"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><rect x="2.5" y="4" width="19" height="13" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
             </button>
           )}
         </span>

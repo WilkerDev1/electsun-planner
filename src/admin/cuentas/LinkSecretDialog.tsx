@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Banner, Button } from "../../ui/components";
-import { Modal } from "./Modal";
+import { Modal } from "../../ui/Modal";
 
 /** URL absoluta de una ruta de la app (`/tv/…#token`), tal como se comparte. */
 export const absoluteUrl = (path: string) => window.location.origin + path;

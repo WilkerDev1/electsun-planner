@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { api, ApiError } from "../../ui/api";
 import type { ImportReport } from "../../../shared/contracts/projects";
 import { Banner } from "../../ui/components";
+import { Modal } from "../../ui/Modal";
 
 // Importar Excel en 2 pasos (XLS-01..04): subir y revisar la vista previa, luego aplicar.
 
@@ -14,18 +15,11 @@ const ACTION = {
 type Step = "upload" | "preview" | "done";
 
 export function ImportDialog({ onClose, onApplied }: { onClose: () => void; onApplied: () => void }) {
-  const ref = useRef<HTMLDialogElement>(null);
   const [step, setStep] = useState<Step>("upload");
   const [file, setFile] = useState<File | null>(null);
   const [report, setReport] = useState<ImportReport | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    const d = ref.current;
-    // El <dialog> desaparece al desmontarse; no se llama a close() para no disparar onClose al re-montar en desarrollo.
-    if (d && !d.open) d.showModal();
-  }, []);
 
   function choose(f: File | null) {
     setError("");
@@ -56,28 +50,9 @@ export function ImportDialog({ onClose, onApplied }: { onClose: () => void; onAp
   const btn = "inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-bold disabled:opacity-50";
 
   return (
-    <dialog
-      ref={ref}
-      aria-labelledby="import-title"
-      onClose={onClose}
-      className="m-auto w-[min(860px,calc(100vw-32px))] rounded-[18px] border border-line bg-white p-0 text-ink shadow-[0_24px_64px_rgba(16,24,40,0.24)] backdrop:bg-black/40"
-    >
-      <div className="flex max-h-[calc(100dvh-48px)] flex-col">
-        <header className="flex items-start justify-between gap-4 border-b border-line px-6 py-4">
-          <div>
-            <h2 id="import-title" className="m-0 text-xl font-extrabold">Importar proyectos desde Excel</h2>
-            <p className="m-0 mt-1 text-[13px] text-subtle">
-              {step === "upload" && "Paso 1 de 2 · Sube el archivo"}
-              {step === "preview" && "Paso 2 de 2 · Revisa antes de aplicar. Todavía no se guardó nada."}
-              {step === "done" && "Importación terminada"}
-            </p>
-          </div>
-          <button type="button" aria-label="Cerrar" onClick={() => ref.current?.close()} className="flex size-9 cursor-pointer items-center justify-center rounded-[10px] border-0 bg-transparent text-muted hover:bg-fill">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M6 6l12 12M18 6 6 18" /></svg>
-          </button>
-        </header>
-
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-5">
+    <Modal title="Importar proyectos desde Excel" subtitle={step === "upload" ? "Paso 1 de 2 · Sube el archivo" : step === "preview" ? "Paso 2 de 2 · Revisa antes de aplicar. Todavía no se guardó nada." : "Importación terminada"} onClose={onClose} xl>
+      <div className="flex flex-col">
+        <div className="flex flex-col gap-4 pb-5">
           {error && <Banner tone="danger">{error}</Banner>}
 
           {step === "upload" && (
@@ -86,7 +61,7 @@ export function ImportDialog({ onClose, onApplied }: { onClose: () => void; onAp
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#475467" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 15V3M7 8l5-5 5 5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" /></svg>
                 <span className="text-sm font-bold">{file ? file.name : "Elige un archivo .xlsx"}</span>
                 <span className="text-[13px] text-subtle">{file ? `${(file.size / 1024).toFixed(0)} KB` : "Hasta 5 MB. El archivo no se guarda en el servidor."}</span>
-                <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="sr-only" aria-label="Archivo de Excel" onChange={(e) => choose(e.target.files?.[0] ?? null)} />
+                <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="sr-only" data-autofocus aria-label="Archivo de Excel" onChange={(e) => choose(e.target.files?.[0] ?? null)} />
               </label>
               <div className="rounded-xl bg-fill-2 px-4 py-3 text-[13px] text-muted">
                 <p className="m-0 font-bold text-ink-2">Columnas que reconoce</p>
@@ -144,10 +119,10 @@ export function ImportDialog({ onClose, onApplied }: { onClose: () => void; onAp
           )}
         </div>
 
-        <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-line px-6 py-4">
+        <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-line pt-4">
           {step === "upload" && (
             <>
-              <button type="button" className={`${btn} border border-line bg-white text-ink-2`} onClick={() => ref.current?.close()}>Cancelar</button>
+              <button type="button" className={`${btn} border border-line bg-white text-ink-2`} onClick={() => onClose()}>Cancelar</button>
               <button type="button" className={`${btn} bg-ink text-white`} disabled={!file || busy} onClick={() => void send(true)}>{busy ? "Leyendo…" : "Revisar archivo"}</button>
             </>
           )}
@@ -159,10 +134,10 @@ export function ImportDialog({ onClose, onApplied }: { onClose: () => void; onAp
               </button>
             </>
           )}
-          {step === "done" && <button type="button" className={`${btn} bg-ink text-white`} onClick={() => ref.current?.close()}>Cerrar</button>}
+          {step === "done" && <button type="button" className={`${btn} bg-ink text-white`} onClick={() => onClose()}>Cerrar</button>}
         </footer>
       </div>
-    </dialog>
+    </Modal>
   );
 }
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "./auth";
 import { initials } from "./components";
@@ -20,7 +20,48 @@ export function Dock() {
   const { user, logout } = useAuth();
   const [menu, setMenu] = useState(false);
   const navigate = useNavigate();
+  const wrap = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
   const tile = "flex size-16 flex-col items-center justify-center gap-1 rounded-[18px] text-xs font-bold no-underline";
+  const menuItems = () => Array.from(wrap.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
+
+  // Menú de cuenta con teclado: foco al primer elemento al abrir; Escape o clic fuera lo cierran y devuelven el foco al botón.
+  useEffect(() => {
+    if (!menu) return;
+    menuItems()[0]?.focus();
+    const onDown = (e: MouseEvent) => {
+      if (!wrap.current?.contains(e.target as Node)) setMenu(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [menu]);
+
+  const closeMenu = (refocus = true) => {
+    setMenu(false);
+    if (refocus) trigger.current?.focus();
+  };
+
+  function onMenuKey(e: React.KeyboardEvent) {
+    const list = menuItems();
+    const at = list.indexOf(document.activeElement as HTMLElement);
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeMenu();
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      list[(at + 1) % list.length]?.focus();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      list[(at - 1 + list.length) % list.length]?.focus();
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      list[0]?.focus();
+    } else if (e.key === "End") {
+      e.preventDefault();
+      list[list.length - 1]?.focus();
+    } else if (e.key === "Tab") setMenu(false);
+  }
+
   return (
     <nav aria-label="Modos" className="sticky top-4 flex w-[84px] shrink-0 flex-col items-center gap-2 self-start rounded-[26px] border border-line bg-white px-2.5 pb-3.5 pt-3 shadow-[var(--shadow-dock)]">
       <span role="img" aria-label="Electsun" className="mb-2 flex size-12 items-center justify-center rounded-[15px] bg-brand text-white">
@@ -41,8 +82,9 @@ export function Dock() {
         Ver TV
       </a>
       <span className="h-6" />
-      <div className="relative">
+      <div className="relative" ref={wrap}>
         <button
+          ref={trigger}
           type="button"
           aria-haspopup="menu"
           aria-expanded={menu}
@@ -53,17 +95,17 @@ export function Dock() {
           {initials(user?.name ?? "?")}
         </button>
         {menu && (
-          <div role="menu" className="absolute bottom-0 left-14 z-40 w-56 rounded-2xl border border-line bg-white p-1.5 shadow-lg">
+          <div role="menu" aria-label="Cuenta" onKeyDown={onMenuKey} className="absolute bottom-0 left-14 z-40 w-56 rounded-2xl border border-line bg-white p-1.5 shadow-lg">
             <p className="m-0 px-3 py-2 text-sm font-bold">{user?.name}<br /><span className="font-semibold text-subtle">{user?.role === "admin" ? "Administrador" : "Oficina"}</span></p>
             {user?.role === "admin" && (
-              <button role="menuitem" className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold hover:bg-fill" onClick={() => { setMenu(false); navigate("/cuentas"); }}>
+              <button type="button" role="menuitem" tabIndex={-1} className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold hover:bg-fill" onClick={() => { closeMenu(false); navigate("/cuentas"); }}>
                 Cuentas
               </button>
             )}
-            <button role="menuitem" className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold hover:bg-fill" onClick={() => { setMenu(false); navigate("/cuenta"); }}>
+            <button type="button" role="menuitem" tabIndex={-1} className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold hover:bg-fill" onClick={() => { closeMenu(false); navigate("/cuenta"); }}>
               Cambiar contraseña
             </button>
-            <button role="menuitem" className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-danger hover:bg-danger-soft" onClick={() => void logout().then(() => navigate("/login"))}>
+            <button type="button" role="menuitem" tabIndex={-1} className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-danger hover:bg-danger-soft" onClick={() => void logout().then(() => navigate("/login"))}>
               Salir
             </button>
           </div>

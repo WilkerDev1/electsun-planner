@@ -9,6 +9,7 @@ type LiveState<T> = { data: T | null; error: ApiError | null; fetchedAt: Date | 
  * y guarda la última respuesta en localStorage para mostrarla sin conexión.
  */
 const CACHE_TTL = 14 * 86400000;
+export const CHANGE_DEBOUNCE = 1000;
 
 export function useLive<T>(path: string, cacheKey: string, eventsQuery = "") {
   const [state, setState] = useState<LiveState<T>>(() => {
@@ -66,12 +67,18 @@ export function useLive<T>(path: string, cacheKey: string, eventsQuery = "") {
     let source: EventSource | null = null;
     let retry = 1000;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    // Varios avisos seguidos (una importación, muchos guardados) se juntan en una sola recarga, 1 s después del último.
+    let changeTimer: ReturnType<typeof setTimeout> | undefined;
+    const onChange = () => {
+      clearTimeout(changeTimer);
+      changeTimer = setTimeout(() => void load(), CHANGE_DEBOUNCE);
+    };
     const connect = () => {
       source = new EventSource("/api/events" + eventsQuery);
       source.addEventListener("ready", () => {
         retry = 1000;
       });
-      source.addEventListener("change", () => void load());
+      source.addEventListener("change", onChange);
       source.addEventListener("revoked", () => void load());
       source.onerror = () => {
         source?.close();
@@ -86,6 +93,7 @@ export function useLive<T>(path: string, cacheKey: string, eventsQuery = "") {
     return () => {
       clearInterval(poll);
       clearTimeout(retryTimer);
+      clearTimeout(changeTimer);
       source?.close();
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("online", load);

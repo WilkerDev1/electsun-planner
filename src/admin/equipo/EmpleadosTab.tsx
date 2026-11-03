@@ -5,7 +5,8 @@ import { EMPLOYEE_STATES, LEVELS, fold, type EmployeeState, type Level } from ".
 import type { Employee } from "../../../shared/contracts/equipo";
 import { MobileAccessCell } from "../cuentas/MobileAccessCell";
 import { LEVEL_STYLE, STATE_STYLE, whereToday, type TabProps } from "./model";
-import { Avatar, IconButton, Modal, SelectChip, Svg, inputCls } from "./ui";
+import { Avatar, IconButton, SelectChip, Svg, inputCls } from "./ui";
+import { Modal } from "../../ui/Modal";
 import { ICON } from "./model";
 
 const GRID = "grid items-center grid-cols-[minmax(240px,1.4fr)_170px_150px_minmax(190px,1fr)_130px_140px_170px_52px]";
@@ -197,7 +198,7 @@ function EmployeeDialog({ employee, data, onClose, onSaved }: { employee: Employ
     <Modal title={employee ? "Editar empleado" : "Nuevo empleado"} onClose={onClose}>
       <form onSubmit={submit} className="flex flex-col gap-3">
         <Field label="Nombre">
-          <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} required maxLength={120} autoFocus />
+          <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} required maxLength={120} data-autofocus />
         </Field>
         <Field label="Oficio">
           <input className={inputCls} value={job} onChange={(e) => setJob(e.target.value)} maxLength={80} placeholder="Electricista, instalador…" />

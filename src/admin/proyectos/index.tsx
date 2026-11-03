@@ -18,6 +18,9 @@ export default function Proyectos() {
   const { user, today } = useAuth();
   const isAdmin = user?.role === "admin";
   const navigate = useNavigate();
+  // `navigate` cambia con cada ruta; el ref evita invalidar el memo de las filas (500) al abrir o cerrar el panel.
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
   const location = useLocation();
   const { "*": splat } = useParams();
   const openId = splat?.split("/")[0] || null;
@@ -37,13 +40,14 @@ export default function Proyectos() {
   const activeTeams = useMemo(() => catalogs?.teams.filter((t) => t.active) ?? [], [catalogs]);
 
   // Un proyecto abierto que no está en la lista (archivado) se pide aparte.
+  const { refreshRow } = store;
   useEffect(() => {
     if (!openId || !rows || rows.some((r) => r.id === openId)) return;
-    store.refreshRow(openId).catch(() => {
+    refreshRow(openId).catch(() => {
       flash("No encontré ese proyecto.", "danger");
-      navigate("/proyectos", { replace: true });
+      navigateRef.current("/proyectos", { replace: true });
     });
-  }, [openId, rows]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [openId, rows, refreshRow, flash]);
 
   // La fila abierta queda a la vista en la lista compacta.
   useEffect(() => {
@@ -65,8 +69,8 @@ export default function Proyectos() {
     return m;
   }, [searched]);
 
-  const open = useCallback((id: string) => navigate(`/proyectos/${id}`), [navigate]);
-  const close = useCallback(() => navigate("/proyectos"), [navigate]);
+  const open = useCallback((id: string) => navigateRef.current(`/proyectos/${id}`), []);
+  const close = useCallback(() => navigateRef.current("/proyectos"), []);
 
   // VAL-01/02 en la interfaz: el estado solo cambia cuando los datos que pide están completos.
   const pickStatus = useCallback(
@@ -80,10 +84,10 @@ export default function Proyectos() {
       ].filter(Boolean);
       if (need.length) {
         flash(`Para pasar a ${s.name} falta ${need.join(" y ")}. Complétalo en el panel.`, "danger");
-        navigate(`/proyectos/${p.id}`, { state: { draftStatus: statusId } });
+        navigateRef.current(`/proyectos/${p.id}`, { state: { draftStatus: statusId } });
       } else patch(p.id, { status_id: statusId });
     },
-    [lk, patch, flash, navigate],
+    [lk, patch, flash],
   );
 
   async function addProject() {
