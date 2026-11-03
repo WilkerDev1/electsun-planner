@@ -117,3 +117,22 @@ export function device(kind: LinkKind) {
     }
   };
 }
+
+/**
+ * ¿Hay alguna credencial válida? Una cuenta, o cualquier enlace de TV o móvil con su cookie de dispositivo.
+ * Sirve para recursos de solo lectura que ve cualquier pantalla (logotipos de empresas, EQP-07), donde no se sabe qué enlace de TV pide la imagen.
+ */
+export async function hasAnyAccess(req: Request): Promise<boolean> {
+  if (req.user) return true;
+  const hashes = Object.entries(req.cookies ?? {})
+    .filter(([name, value]) => (name === MOBILE_COOKIE || name.startsWith(TV_COOKIE_PREFIX)) && typeof value === "string")
+    .map(([, value]) => hash(value as string))
+    .slice(0, 50); // tope razonable de cookies de dispositivo por petición
+  if (!hashes.length) return false;
+  const r = await pool.query(
+    `SELECT 1 FROM device_sessions s JOIN access_links l ON l.id=s.link_id
+     WHERE s.hash=ANY($1::text[]) AND s.expires_at>now() AND l.active LIMIT 1`,
+    [hashes],
+  );
+  return r.rowCount === 1;
+}

@@ -12,6 +12,7 @@ const CambiarClave = lazy(() => import("./auth/CambiarClave"));
 const Proyectos = lazy(() => import("./admin/proyectos"));
 const Equipo = lazy(() => import("./admin/equipo"));
 const MuralConfig = lazy(() => import("./admin/mural"));
+const Ajustes = lazy(() => import("./admin/ajustes"));
 const Cuentas = lazy(() => import("./admin/cuentas"));
 const MuralTV = lazy(() => import("./mural"));
 const Movil = lazy(() => import("./movil"));
@@ -37,6 +38,7 @@ createRoot(document.getElementById("root")!).render(
                     <Route path="/proyectos/*" element={<Proyectos />} />
                     <Route path="/equipo/*" element={<Equipo />} />
                     <Route path="/mural" element={<MuralConfig />} />
+                    <Route path="/ajustes" element={<Ajustes />} />
                     <Route path="/cuenta" element={<CambiarClave />} />
                     <Route path="/cuentas" element={<RequireAuth adminOnly><Cuentas /></RequireAuth>} />
                     <Route path="*" element={<Navigate to="/proyectos" replace />} />

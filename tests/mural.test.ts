@@ -1,7 +1,7 @@
 import test, { before, after } from "node:test";
 import assert from "node:assert/strict";
 import { setup, endPool, cookieFrom, pool, type Ctx } from "./helpers.js";
-import { listCompanies, listProjects, listStatuses, listTeams } from "../server/queries.js";
+import { listCompanies, listPrepItems, listProjects, listStatuses, listTeams } from "../server/queries.js";
 import { muralModel, shortName, type MuralInput, type MuralModel } from "../shared/mural-model.js";
 import type { MuralSettings, MuralView, Notice } from "../shared/contracts/mural.js";
 import type { LinkSecret, RedeemResult } from "../shared/contracts/access.js";
@@ -32,14 +32,15 @@ after(async () => {
 });
 
 async function loadInput(): Promise<MuralInput> {
-  const [projects, statuses, companies, teams, notices] = await Promise.all([
+  const [projects, statuses, companies, teams, prepItems, notices] = await Promise.all([
     listProjects(pool),
     listStatuses(pool),
     listCompanies(pool),
     listTeams(pool),
+    listPrepItems(pool),
     pool.query("SELECT id,text,starts_on,expires_on,sort FROM notices ORDER BY sort").then((r) => r.rows as Notice[]),
   ]);
-  return { projects, statuses, companies, teams, notices };
+  return { projects, statuses, companies, teams, notices, prepItems };
 }
 
 const model = (over: Partial<MuralSettings> = {}, data: MuralInput = input): MuralModel =>
@@ -523,11 +524,11 @@ test("/view/mural con el enlace de TV: 200 con la cookie y 403 tras revocarlo (A
 
 test("/view/mural responde en menos de 300 ms con 500 proyectos (NF-05)", async () => {
   await pool.query(
-    `INSERT INTO projects(id,company_id,name,kwp,place,team_id,start_date,end_date,estimated_days,status_id,system_type,prep_plans,prep_materials,prep_ede)
+    `INSERT INTO projects(id,company_id,name,kwp,place,team_id,start_date,end_date,estimated_days,status_id,system_type)
      SELECT gen_random_uuid(),(SELECT id FROM companies ORDER BY name LIMIT 1),'Carga ' || g,5.5,'Santiago',
        (SELECT id FROM teams WHERE code='E'||(1+g%3)), DATE '2026-10-26' + (g%10), DATE '2026-10-26' + (g%10) + 2, 3,
        (SELECT id FROM statuses WHERE kind = CASE WHEN g%5=0 THEN 'en_obra' WHEN g%5=1 THEN 'programado' ELSE 'por_programar' END),
-       'neta', true, false, false
+       'neta'
      FROM generate_series(1,500) g`,
   );
   try {

@@ -70,7 +70,7 @@ export default function Detalle() {
       {backButton}
       <div className="flex flex-col gap-3.5 px-4 pb-6 pt-1.5">
         <header className="flex items-start gap-3">
-          <CompanyMono company={job.company} size={52} round={false} />
+          <CompanyMono company={job.company} size={52} round={false} decorative />
           <div className="flex min-w-0 flex-col gap-1.5">
             <h1 className="m-0 text-[26px] font-extrabold leading-tight tracking-tight">{job.name}</h1>
             <div className="flex flex-wrap gap-1.5">
@@ -124,8 +124,20 @@ export default function Detalle() {
           <Fact label="Fechas">{job.dates_text}</Fact>
           <Fact label="Días de trabajo">{job.duration_text}</Fact>
           <Fact label="Preparación">
-            <span className={job.prep_ready ? "text-ok" : "text-warn"}>{job.prep_text}</span>
+            {job.prep.length === 0 ? <span className="text-muted">No lleva</span> : <span className={job.prep_ready ? "text-ok" : "text-warn"}>{job.prep_text}</span>}
           </Fact>
+          {job.prep.length > 0 && (
+            <ul aria-label="Detalle de la preparación" className="m-0 flex list-none flex-col gap-0 border-b border-[#F0F1F4] p-0">
+              {job.prep.map((it) => (
+                <li key={it.code} className="flex min-h-11 items-center justify-between gap-3 px-4 py-2">
+                  <span className={`text-[15px] ${it.applies ? "" : "text-muted"}`}>{it.name}</span>
+                  <span className={`shrink-0 text-[14px] font-bold ${!it.applies ? "text-muted" : it.done ? "text-ok" : "text-warn"}`}>
+                    {!it.applies ? "No aplica" : it.done ? "Hecho" : "Pendiente"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
           {job.map_url && (
             <div className="p-3">
               <MapsButton url={job.map_url} className="min-h-12 w-full">

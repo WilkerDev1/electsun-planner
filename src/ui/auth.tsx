@@ -19,6 +19,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
   const logout = useCallback(async () => {
     await api("/auth/logout", { method: "POST" });
+    // Los logotipos cacheados por el Service Worker no deben sobrevivir a la sesión (EQP-07).
+    try {
+      if (typeof caches !== "undefined") await caches.delete("company-logos");
+    } catch {
+      /* sin caché o sin permiso: nada que limpiar */
+    }
     setMe((m) => ({ ...m, user: null }));
   }, []);
   useEffect(() => {

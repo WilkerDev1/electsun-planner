@@ -8,11 +8,11 @@ import { listProjects, listStatuses } from "../queries.js";
 import { serverToday } from "../today.js";
 import { exportProjects, importProjects } from "../xlsx.js";
 import {
-  blankProject, changedFields, fieldsOf, insertProject, assertTeamAssignable, lockProject, saveProject, validateAgainstDb,
-  type ProjectFields,
+  blankProject, changedFields, defaultPrep, fieldsOf, insertProject, assertTeamAssignable, lockProject, normalizePrep,
+  saveProject, validateAgainstDb, type ProjectFields,
 } from "../project-store.js";
-import { ProjectCreate, ProjectPatch, type HistoryEntry } from "../../shared/contracts/projects.js";
-import { mergeProject, normalizeDate, parseKwp } from "../../shared/domain.js";
+import { ArchiveBulk, ProjectCreate, ProjectPatch, type ArchiveBulkResult, type HistoryEntry, type Project, type ProjectResponse } from "../../shared/contracts/projects.js";
+import { mergeProject, normalizeDate, parseKwp, type CodedWarning } from "../../shared/domain.js";
 
 // F1·B — Proyectos, validación, historial, Excel (PRY, VAL, XLS, HIS, ROL-03)
 export const projects = Router();
@@ -57,14 +57,31 @@ async function statusOf(db: Parameters<typeof listStatuses>[0], id: string) {
   return status;
 }
 
+/** El proyecto más sus avisos, con y sin código (VAL-10). */
+const response = (project: Project, check: { warnings: string[]; coded: CodedWarning[] }): ProjectResponse => ({
+  ...project,
+  warnings: check.warnings,
+  coded_warnings: check.coded,
+});
+
+/** Al desarchivar no se bloquea nada: lo que la validación rechazaría hoy se devuelve como aviso con código `error`, junto a los avisos normales. */
+async function checkRestored(c: Parameters<typeof listStatuses>[0], project: Project) {
+  const status = await statusOf(c, project.status_id);
+  const check = await validateAgainstDb(c, { ...fieldsOf(project), id: project.id }, status, serverToday());
+  const coded: CodedWarning[] = [...check.errors.map((text) => ({ code: "error" as const, text })), ...check.coded];
+  return { warnings: coded.map((w) => w.text), coded_warnings: coded };
+}
+
 function failIfErrors(errors: string[]) {
   if (errors.length) throw httpError(422, errors.join(" "));
 }
 
 // ---------- Lecturas ----------
 
+// Sin parámetro: solo los activos. `?archived=1`: todos, activos y archivados. `?archived=only`: solo los archivados.
 projects.get("/", authenticated, async (req, res) => {
-  res.json(await listProjects(pool, { archived: req.query.archived === "1" }));
+  const archived = req.query.archived === "only" ? "only" : req.query.archived === "1";
+  res.json(await listProjects(pool, { archived }));
 });
 
 // XLS-05. Antes de /:id para que "export" no se tome como id.
@@ -112,16 +129,19 @@ projects.post("/", authenticated, async (req, res) => {
       : statuses.find((s) => s.kind === "por_programar") ?? statuses[0];
     const { company_id, name, ...rest } = body;
     const base = blankProject(company_id, name, status.id);
+    // Sin `prep` explícito, el proyecto lleva los parámetros marcados como «por defecto», sin hacer (PRY-12).
+    if (rest.prep === undefined) base.prep = await defaultPrep(c);
     const merged = mergeProject(base, toFields(rest), status.kind, today);
+    merged.prep = await normalizePrep(c, merged.prep);
     if (merged.estimated_days !== null && merged.estimated_days > 120)
       throw httpError(422, "La obra no puede pasar de 120 días laborables.");
     await assertTeamAssignable(c, merged.team_id);
     const check = await validateAgainstDb(c, { ...merged, id: "" }, status, today);
     failIfErrors(check.errors);
-    return { project: await insertProject(c, merged, req.user!.id), warnings: check.warnings };
+    return { project: await insertProject(c, merged, req.user!.id), check };
   });
   publishChange("project");
-  res.status(201).json({ ...out.project, warnings: out.warnings });
+  res.status(201).json(response(out.project, out.check));
 });
 
 // PRY-03, PRY-11, VAL, ROL-03
@@ -140,17 +160,18 @@ projects.patch("/:id", authenticated, async (req, res) => {
     if (before.version !== version) throw httpError(409, "Otra persona cambió este proyecto. Se cargó la versión más reciente.");
     const status = await statusOf(c, patch.status_id ?? before.status_id);
     const merged = mergeProject(fieldsOf(before), patch, status.kind, today);
+    if (patch.prep !== undefined) merged.prep = await normalizePrep(c, merged.prep);
     if (merged.estimated_days !== null && merged.estimated_days > 120)
       throw httpError(422, "La obra no puede pasar de 120 días laborables.");
     await assertTeamAssignable(c, merged.team_id, before.team_id);
     const check = await validateAgainstDb(c, { ...merged, id }, status, today);
     failIfErrors(check.errors);
     const changes = changedFields(fieldsOf(before), merged);
-    if (!Object.keys(changes).length) return { project: before, warnings: check.warnings, changed: false };
-    return { project: await saveProject(c, before, changes, req.user!.id), warnings: check.warnings, changed: true };
+    if (!Object.keys(changes).length) return { project: before, check, changed: false };
+    return { project: await saveProject(c, before, changes, req.user!.id), check, changed: true };
   });
   if (out.changed) publishChange("project");
-  res.json({ ...out.project, warnings: out.warnings });
+  res.json(response(out.project, out.check));
 });
 
 // PRY-10: archivar y desarchivar (no hay borrado). Cuerpo opcional con `version`.
@@ -163,13 +184,45 @@ for (const [path, archived] of [["archive", true], ["unarchive", false]] as cons
       if (!before) throw httpError(404, "Ese proyecto no existe.");
       if (version !== undefined && before.version !== version)
         throw httpError(409, "Otra persona cambió este proyecto. Se cargó la versión más reciente.");
-      if (before.archived === archived) return { project: before, changed: false };
+      if (before.archived === archived) return { project: before, changed: false, check: undefined };
       const project = await saveProject(c, before, { archived }, req.user!.id, archived ? "project.archive" : "project.unarchive");
-      return { project, changed: true };
+      return { project, changed: true, check: archived ? undefined : await checkRestored(c, project) };
     });
     if (out.changed) publishChange("project");
-    res.json({ ...out.project, warnings: [] });
+    res.json({ ...out.project, ...(out.check ?? { warnings: [], coded_warnings: [] }) } satisfies ProjectResponse);
   });
+
+// PRY-10: archivar o desarchivar varios a la vez. Una transacción, un historial por proyecto y un solo aviso a las pantallas.
+projects.post("/archive-bulk", authenticated, async (req, res) => {
+  const { ids: requested, archived, versions } = ArchiveBulk.parse(req.body);
+  const ids = [...new Set(requested)];
+  const out = await transaction(async (c): Promise<ArchiveBulkResult> => {
+    // Se bloquean en orden de id para que dos archivados en bloque a la vez no se esperen en círculo.
+    const locked = (await c.query("SELECT id FROM projects WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE", [ids])).rows;
+    if (locked.length !== ids.length) throw httpError(404, "Alguno de los proyectos ya no existe. Recarga la lista.");
+    let changed = 0;
+    const warnings: NonNullable<ArchiveBulkResult["warnings"]> = {};
+    const restored: Project[] = [];
+    for (const { id } of locked) {
+      const before = (await lockProject(c, id))!;
+      if (versions?.[id] !== undefined && versions[id] !== before.version)
+        throw httpError(409, `«${before.name}» cambió mientras lo elegías. Recarga la lista y vuelve a intentarlo.`);
+      if (before.archived === archived) continue;
+      restored.push(await saveProject(c, before, { archived }, req.user!.id, archived ? "project.archive" : "project.unarchive"));
+      changed++;
+    }
+    // Se valida después de guardar todos, para que los choques entre proyectos restaurados juntos salgan en ambos.
+    if (!archived)
+      for (const saved of restored) {
+        const check = await checkRestored(c, saved);
+        if (check.warnings.length) warnings[saved.id] = check;
+      }
+    const byId = new Map((await listProjects(c, { ids })).map((p) => [p.id, p]));
+    return { projects: ids.map((id) => byId.get(id)!), changed, ...(archived ? {} : { warnings }) };
+  });
+  if (out.changed) publishChange("project");
+  res.json(out);
+});
 
 // XLS-01..04, XLS-06: el archivo vive solo en memoria.
 const upload = multer({

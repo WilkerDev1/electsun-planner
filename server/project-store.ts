@@ -5,28 +5,76 @@ import { audit, diffOf } from "./audit.js";
 import { PROJECT_COLUMNS, listProjects } from "./queries.js";
 import type { Project } from "../shared/contracts/projects.js";
 import type { Status } from "../shared/contracts/statuses.js";
-import { validateProject, type Schedulable, type Validation } from "../shared/domain.js";
+import { validateProject, type PrepEntry, type Schedulable, type Validation } from "../shared/domain.js";
 
 // Escritura y validación de proyectos compartidas por el PATCH y la importación de Excel (PRY, VAL, XLS, HIS).
 
 /** Columnas de `projects` que la aplicación escribe (el resto lo gestiona la base). */
-export const WRITABLE = [
+export const COLUMNS = [
   "company_id", "name", "kwp", "sale_date", "place", "lead_employee_id", "team_id", "start_date", "estimated_days",
   "end_date", "actual_end", "status_id", "pause_reason", "notes", "show_on_mural", "mural_until", "priority", "part",
-  "system_type", "prep_plans", "prep_materials", "prep_ede", "archived",
+  "system_type", "archived",
 ] as const;
+/** Campos que escribe la aplicación: las columnas más `prep`, que vive en la tabla `project_prep` (PRY-12). */
+export const WRITABLE = [...COLUMNS, "prep"] as const;
 export type Writable = (typeof WRITABLE)[number];
 export type ProjectFields = Pick<Project, Writable>;
 
 export const fieldsOf = (p: Project): ProjectFields =>
   Object.fromEntries(WRITABLE.map((k) => [k, p[k]])) as ProjectFields;
 
+/** Código de cada parámetro de preparación, para auditar con nombres legibles en vez de ids. */
+async function prepCodes(c: PoolClient): Promise<Map<string, string>> {
+  return new Map((await c.query("SELECT id,code FROM prep_items")).rows.map((r) => [r.id, r.code]));
+}
+
+/** Estado de preparación por código (`{ PL: true, MA: false }`): lo que se guarda en el historial. */
+export const prepByCode = (prep: PrepEntry[], codes: Map<string, string>): Record<string, boolean> =>
+  Object.fromEntries(prep.map((e) => [codes.get(e.item_id) ?? e.item_id, e.done]));
+
+/** Campos como se guardan en el historial: `prep` se ve por código. */
+async function auditFields(c: PoolClient, p: Project): Promise<Record<string, unknown>> {
+  return { ...fieldsOf(p), prep: prepByCode(p.prep, await prepCodes(c)) };
+}
+
+/** Ítems con `default_on`, sin hacer, para un proyecto nuevo sin `prep` explícito. */
+export async function defaultPrep(db: Pick<Db, "query">): Promise<PrepEntry[]> {
+  const r = await db.query("SELECT id FROM prep_items WHERE default_on ORDER BY sort,code");
+  return r.rows.map((x) => ({ item_id: x.id, done: false }));
+}
+
+/** Los ítems existen en el catálogo (y no se repiten: eso lo valida el contrato). */
+export async function assertPrepItems(db: Pick<Db, "query">, prep: PrepEntry[]): Promise<void> {
+  if (!prep.length) return;
+  const found = await db.query("SELECT id FROM prep_items WHERE id=ANY($1::uuid[])", [prep.map((e) => e.item_id)]);
+  if (found.rowCount !== prep.length)
+    throw httpError(422, "Algún parámetro de preparación ya no existe. Recarga la lista e inténtalo de nuevo.");
+}
+
+/** Valida los ítems y los deja en el orden del catálogo, que es como se leen (así `changedFields` no ve cambios falsos). */
+export async function normalizePrep(db: Pick<Db, "query">, prep: PrepEntry[]): Promise<PrepEntry[]> {
+  await assertPrepItems(db, prep);
+  if (prep.length < 2) return prep;
+  const order = (await db.query("SELECT id FROM prep_items ORDER BY sort,code")).rows.map((r) => r.id as string);
+  return [...prep].sort((a, b) => order.indexOf(a.item_id) - order.indexOf(b.item_id));
+}
+
+/** Reemplaza la lista de preparación del proyecto. */
+async function replacePrep(c: PoolClient, projectId: string, prep: PrepEntry[]): Promise<void> {
+  await c.query("DELETE FROM project_prep WHERE project_id=$1", [projectId]);
+  if (prep.length)
+    await c.query(
+      "INSERT INTO project_prep(project_id,item_id,done) SELECT $1,x.item_id,x.done FROM unnest($2::uuid[],$3::boolean[]) AS x(item_id,done)",
+      [projectId, prep.map((e) => e.item_id), prep.map((e) => e.done)],
+    );
+}
+
 /** Valores iniciales de un proyecto nuevo. */
 export const blankProject = (company_id: string, name: string, status_id: string, part = ""): ProjectFields => ({
   company_id, name, kwp: null, sale_date: null, place: "", lead_employee_id: null, team_id: null,
   start_date: null, estimated_days: null, end_date: null, actual_end: null, status_id, pause_reason: "",
   notes: "", show_on_mural: false, mural_until: null, priority: false, part, system_type: "neta",
-  prep_plans: false, prep_materials: false, prep_ede: false, archived: false,
+  prep: [], archived: false,
 });
 
 /** Lee y bloquea la fila para el resto de la transacción. */
@@ -45,14 +93,16 @@ export async function insertProject(
   actorId: string | null,
   id: string = crypto.randomUUID(),
 ): Promise<Project> {
-  const cols = ["id", ...WRITABLE, "created_by"];
-  const values = [id, ...WRITABLE.map((k) => fields[k]), actorId];
+  const cols = ["id", ...COLUMNS, "created_by"];
+  const values = [id, ...COLUMNS.map((k) => fields[k]), actorId];
   await c.query(
     `INSERT INTO projects(${cols.join(",")}) VALUES(${cols.map((_, i) => "$" + (i + 1)).join(",")})`,
     values,
   );
+  await assertPrepItems(c, fields.prep);
+  await replacePrep(c, id, fields.prep);
   const [created] = await listProjects(c, { id });
-  await audit(c, actorId, "project.create", "project", id, diffOf(null, fieldsOf(created) as Record<string, unknown>));
+  await audit(c, actorId, "project.create", "project", id, diffOf(null, await auditFields(c, created)));
   return created;
 }
 
@@ -64,14 +114,19 @@ export async function saveProject(
   actorId: string | null,
   action = "project.update",
 ): Promise<Project> {
-  const keys = Object.keys(changes) as Writable[];
+  const { prep, ...columns } = changes;
+  const keys = Object.keys(columns) as (typeof COLUMNS)[number][];
   const sets = keys.map((k, i) => `${k}=$${i + 1}`);
   await c.query(
     `UPDATE projects SET ${[...sets, "version=version+1", "updated_at=now()"].join(",")} WHERE id=$${keys.length + 1}`,
-    [...keys.map((k) => changes[k]), before.id],
+    [...keys.map((k) => columns[k]), before.id],
   );
+  if (prep !== undefined) {
+    await assertPrepItems(c, prep);
+    await replacePrep(c, before.id, prep);
+  }
   const [after] = await listProjects(c, { id: before.id });
-  await audit(c, actorId, action, "project", before.id, diffOf(fieldsOf(before), fieldsOf(after) as Record<string, unknown>));
+  await audit(c, actorId, action, "project", before.id, diffOf(await auditFields(c, before), await auditFields(c, after)));
   return after;
 }
 
@@ -85,7 +140,7 @@ export function changedFields(before: ProjectFields, next: ProjectFields): Parti
 type Validatable = Pick<
   Project,
   | "id" | "name" | "sale_date" | "start_date" | "end_date" | "team_id" | "pause_reason" | "archived"
-  | "estimated_days" | "system_type" | "prep_plans" | "prep_materials" | "prep_ede"
+  | "estimated_days" | "system_type" | "prep"
 >;
 
 /** Reglas VAL contra los demás proyectos del mismo equipo en la base. */
@@ -102,7 +157,8 @@ export async function validateAgainstDb(db: Db, p: Validatable, status: Status, 
     ).rows;
     teamCode = (await db.query("SELECT code FROM teams WHERE id=$1", [p.team_id])).rows[0]?.code;
   }
-  return validateProject(p, status, others, today, () => teamCode ?? "El equipo");
+  const catalog = (await db.query("SELECT id,code,name,pending_label,applies_to FROM prep_items ORDER BY sort,code")).rows;
+  return validateProject(p, status, others, today, () => teamCode ?? "El equipo", catalog);
 }
 
 /**

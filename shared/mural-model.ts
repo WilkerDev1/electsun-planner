@@ -21,7 +21,9 @@ import {
   workdayIndex,
   missingPrep,
   type ISODate,
+  type PrepCatalogItem,
   type StatusKind, monogramColors } from "./domain.js";
+import type { CompanyPattern } from "./pattern.js";
 import type { Project } from "./contracts/projects.js";
 import type { Status } from "./contracts/statuses.js";
 import type { Company, Team } from "./contracts/equipo.js";
@@ -33,12 +35,26 @@ export type MuralInput = {
   companies: Company[];
   teams: Team[];
   notices: Notice[];
+  /** Catálogo de preparación: de ahí salen los motivos de espera (CAL-07). */
+  prepItems: PrepCatalogItem[];
 };
 
 // ---------- Tipos del modelo ----------
 
-/** Colores de una empresa: punto, texto y fondo del monograma (MUR-13: solo ahí aparece el color de empresa). */
-export type CompanyTint = { code: string; name: string; dot: string; fg: string; bg: string };
+/**
+ * Colores de una empresa: punto, texto y fondo del monograma (MUR-13: solo ahí aparece el color de empresa).
+ * `color` y `pattern` sirven para dibujar el punto con su patrón (`patternStyle`) y `logo_url` sustituye al monograma (EQP-07).
+ */
+export type CompanyTint = {
+  code: string;
+  name: string;
+  dot: string;
+  fg: string;
+  bg: string;
+  color: string;
+  pattern: CompanyPattern;
+  logo_url: string | null;
+};
 export type StatusStyle = { name: string; fg: string; bg: string; dot: string };
 export type KpiTone = "ok" | "indigo" | "slate" | "brand";
 
@@ -114,6 +130,8 @@ export type TimelineRow = {
   name: string;
   priority: boolean;
   dot: string;
+  /** Patrón del color de la empresa: dos empresas con el mismo color se distinguen por él. */
+  pattern: CompanyPattern;
   /** Lugar, más "parte 1" y kWp si están activos. */
   place: string;
   when: string;
@@ -167,10 +185,13 @@ export type MuralModel = {
 // ---------- Utilidades ----------
 
 /** Color de empresa → colores del monograma: fondo muy claro y texto oscuro del mismo tono. */
-export function companyTint(c: { code: string; name: string; color: string }): CompanyTint {
+export function companyTint(c: { code: string; name: string; color: string; pattern?: CompanyPattern; logo_url?: string | null }): CompanyTint {
   // Mismos colores de monograma que la tabla y el móvil (shared/domain.ts).
   const { bg, fg } = monogramColors(c.color);
-  return { code: c.code, name: c.name, dot: c.color.toUpperCase(), fg, bg };
+  return {
+    code: c.code, name: c.name, dot: c.color.toUpperCase(), fg, bg,
+    color: c.color.toUpperCase(), pattern: c.pattern ?? "solido", logo_url: c.logo_url ?? null,
+  };
 }
 
 const UNKNOWN_COMPANY = { code: "··", name: "Sin empresa", color: "#98A2B3" };
@@ -396,12 +417,12 @@ export function muralModel(input: MuralInput, settings: MuralSettings, today: IS
   );
   const waitingAll: WaitingItem[] = waitSorted.map((p) => {
     const paused = p.status_kind === "en_pausa";
-    const missing = missingPrep(p).length > 0;
+    const missing = missingPrep(p, input.prepItems).length > 0;
     return {
       id: p.id,
       name: p.name,
       company: tint(p.company_id),
-      sub: paused ? p.pause_reason.trim() || "En pausa" : waitReason(p),
+      sub: paused ? p.pause_reason.trim() || "En pausa" : waitReason(p, input.prepItems),
       tone: paused ? "pause" : missing ? "wait" : "ready",
       priority: settings.show_priority && p.priority,
       days: p.sale_date ? Math.max(0, diffDays(p.sale_date, today)) : null,
@@ -472,7 +493,8 @@ export function muralModel(input: MuralInput, settings: MuralSettings, today: IS
       team: t?.code ?? "—",
       name: p.name,
       priority: settings.show_priority && p.priority,
-      dot: (company.get(p.company_id) ?? UNKNOWN_COMPANY).color,
+      dot: tint(p.company_id).color,
+      pattern: tint(p.company_id).pattern,
       place: parts.join(" · "),
       when,
       whenSub,

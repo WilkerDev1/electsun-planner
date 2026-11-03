@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useOutletContext } from "react-router-dom";
 import type { MovilCompany, MovilPerson, MovilView, SegmentState } from "../../shared/contracts/movil";
-import { monogramColors } from "../../shared/domain";
+import { CompanyMark } from "../ui/CompanyMark";
 
 // Piezas compartidas de las pantallas móviles (design/v4/V4Movil). Pensadas para leerse a pleno sol:
 // nada de texto por debajo de 13 px y los controles táctiles miden al menos 44 px (MOV-06).
@@ -53,19 +53,9 @@ export function Sun({ size = 40 }: { size?: number }) {
   );
 }
 
-/** Monograma de empresa (2 letras sobre su color suave). */
-export function CompanyMono({ company, size = 40, round = true }: { company: MovilCompany; size?: number; round?: boolean }) {
-  const t = monogramColors(company.color);
-  return (
-    <span
-      role="img"
-      aria-label={company.name}
-      className={`flex shrink-0 items-center justify-center text-[14px] font-extrabold ${round ? "rounded-full" : "rounded-xl"}`}
-      style={{ width: size, height: size, background: t.bg, color: t.fg }}
-    >
-      {company.code}
-    </span>
-  );
+/** Marca de empresa: su logotipo si lo tiene; si no (o si no carga), el monograma con su color y patrón (EQP-07, EQP-08). */
+export function CompanyMono({ company, size = 40, round = true, decorative = false }: { company: MovilCompany; size?: number; round?: boolean; decorative?: boolean }) {
+  return <CompanyMark company={company} size={size} shape={round ? "round" : "square"} decorative={decorative} />;
 }
 
 export function TeamBadge({ code, className = "" }: { code: string; className?: string }) {

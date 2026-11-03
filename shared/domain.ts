@@ -192,25 +192,66 @@ export function lateDays(kind: StatusKind, end: ISODate | null, today: ISODate):
 
 export const lateText = (n: number) => `Atrasada · +${plural(n, "día", "días")}`;
 
-// ---------- Preparación (CAL-07, VAL-09) ----------
+// ---------- Preparación (CAL-07, PRY-12) ----------
 
-export type Prep = {
-  system_type: SystemType;
-  prep_plans: boolean;
-  prep_materials: boolean;
-  prep_ede: boolean;
+/** A qué tipo de sistema aplica un parámetro de preparación. */
+export const PREP_APPLIES = ["todos", "neta", "hibrido"] as const;
+export type PrepAppliesTo = (typeof PREP_APPLIES)[number];
+
+/** Parámetro del catálogo de preparación. Los ítems de la API traen además `default_on`, `sort`, etc. */
+export type PrepCatalogItem = {
+  id: string;
+  code: string;
+  name: string;
+  /** Motivo de espera: «planos», «espera permiso». */
+  pending_label: string;
+  applies_to: PrepAppliesTo;
 };
 
-export function missingPrep(p: Prep): string[] {
-  const out: string[] = [];
-  if (!p.prep_plans) out.push("planos");
-  if (!p.prep_materials) out.push("material");
-  if (p.system_type === "neta" && !p.prep_ede) out.push("EDE");
-  return out;
+/** Parámetro que un proyecto lleva y si ya está hecho. Solo están los que se eligieron para ese proyecto. */
+export type PrepEntry = { item_id: string; done: boolean };
+
+export type Prep = { system_type: SystemType; prep: PrepEntry[] };
+
+/** Un parámetro aplica a los proyectos de su tipo; `todos` aplica siempre. */
+export const prepApplies = (item: Pick<PrepCatalogItem, "applies_to">, type: SystemType): boolean =>
+  item.applies_to === "todos" || item.applies_to === type;
+
+export type PrepRow<I extends PrepCatalogItem = PrepCatalogItem> = {
+  item: I;
+  /** El proyecto lo lleva (se eligió para él). */
+  selected: boolean;
+  /** Marcado como hecho. */
+  done: boolean;
+  /** Aplica al tipo de sistema del proyecto; si no, la interfaz lo muestra apagado y no cuenta como pendiente. */
+  applies: boolean;
+  /** Elegido, aplica y no está hecho. */
+  pending: boolean;
+};
+
+/** Una fila por parámetro del catálogo, en el orden en que llega el catálogo. */
+export function prepRows<I extends PrepCatalogItem>(p: Prep, catalog: readonly I[]): PrepRow<I>[] {
+  const mine = new Map(p.prep.map((e) => [e.item_id, e.done]));
+  return catalog.map((item) => {
+    const selected = mine.has(item.id);
+    const done = mine.get(item.id) === true;
+    const applies = prepApplies(item, p.system_type);
+    return { item, selected, done, applies, pending: selected && applies && !done };
+  });
 }
 
-export function waitReason(p: Prep): string {
-  const m = missingPrep(p);
+/** «espera permiso» → «permiso»: los motivos se unen tras un solo «Espera». */
+export const waitLabel = (label: string): string => label.trim().replace(/^(?:espera|falta|faltan)\s+/i, "");
+
+/** Motivos de lo que falta: planos, material… Sin parámetros elegidos (o ninguno que aplique) no falta nada. */
+export function missingPrep(p: Prep, catalog: readonly PrepCatalogItem[]): string[] {
+  return prepRows(p, catalog)
+    .filter((r) => r.pending)
+    .map((r) => waitLabel(r.item.pending_label));
+}
+
+export function waitReason(p: Prep, catalog: readonly PrepCatalogItem[]): string {
+  const m = missingPrep(p, catalog);
   return m.length ? `Espera ${joinEs(m)}` : "Lista para programar";
 }
 
@@ -323,7 +364,8 @@ export type ValidatableProject = Prep & {
   archived?: boolean;
 };
 
-export type WarningCode = "inicio_antes_venta" | "choque_equipo" | "prep_pendiente" | "atrasada";
+/** `error` solo sale al desarchivar: un dato que la validación rechazaría hoy, devuelto como aviso sin bloquear. */
+export type WarningCode = "inicio_antes_venta" | "choque_equipo" | "prep_pendiente" | "atrasada" | "error";
 export type CodedWarning = { code: WarningCode; text: string };
 
 /** `warnings` conserva solo los textos; `coded` lleva los mismos avisos, en el mismo orden, con su código. */
@@ -347,7 +389,8 @@ export function validateProject(
   status: StatusRules,
   others: Schedulable[],
   today: ISODate,
-  teamCode?: (id: string) => string,
+  teamCode: ((id: string) => string) | undefined,
+  prepCatalog: readonly PrepCatalogItem[],
 ): Validation {
   const errors: string[] = [];
   const coded: CodedWarning[] = [];
@@ -364,7 +407,7 @@ export function validateProject(
   const clash = teamClash({ ...p, kind: status.kind }, others);
   if (clash)
     warn("choque_equipo", `${teamCode?.(p.team_id!) ?? "El equipo"} ya está en ${clash.name} esos días.`);
-  const miss = missingPrep(p);
+  const miss = missingPrep(p, prepCatalog);
   if (BUSY_KINDS.includes(status.kind) && miss.length)
     warn("prep_pendiente", `${status.name} con preparación pendiente: falta ${joinEs(miss)}.`);
   const late = lateDays(status.kind, p.end_date, today);
@@ -430,8 +473,7 @@ export function parseKwp(v: unknown): string | null | undefined {
   return n > 999999.99 ? undefined : n.toFixed(2);
 }
 
-export type MergeableProject = Schedule &
-  Prep & {
+export type MergeableProject = Schedule & {
     status_id: string;
     actual_end: ISODate | null;
     show_on_mural: boolean;
@@ -440,7 +482,7 @@ export type MergeableProject = Schedule &
 
 /**
  * Aplica un cambio a un proyecto con todas las normalizaciones: fechas coherentes (CAL-05),
- * `prep_ede` fuera si es híbrido (VAL-09), fin real al cerrar o reabrir la obra y "hasta" del mural (+7 días).
+ * fin real al cerrar o reabrir la obra y "hasta" del mural (+7 días). `prep` se reemplaza completo si viene en el cambio.
  * `kind` es el tipo del estado resultante.
  */
 export function mergeProject<T extends MergeableProject>(
@@ -451,7 +493,6 @@ export function mergeProject<T extends MergeableProject>(
   finishedOn: ISODate = today,
 ): T {
   const next: T = { ...prev, ...patch, ...reconcileSchedule(prev, patch) };
-  if (next.system_type === "hibrido") next.prep_ede = false;
   if (patch.status_id !== undefined && patch.status_id !== prev.status_id)
     next.actual_end = actualEndFor(kind, prev.actual_end, finishedOn);
   if (patch.show_on_mural === true && !prev.show_on_mural && patch.mural_until === undefined && (!next.mural_until || next.mural_until < today))

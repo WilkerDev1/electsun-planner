@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { longDate } from "../../shared/domain";
 import { shortName, type MuralModel, type TimelineGroup, type TimelineRow, type WaitingItem } from "../../shared/mural-model";
 import { ACCENT, Clock, FONT, Flag, SunLogo, TODAY_COLOR, ellipsis, pct, updatedText, type ScreenProps } from "./shared";
+import { PatternDot } from "./Mark";
 
 // Diseño "timeline por fila" (design/v4/V4Mural.dc.html, MUR-08): una fila por proyecto activo con su barra.
 
@@ -165,7 +166,7 @@ function GroupRows({ f, cols, weeks, todayCol, todayAt }: { f: Fitted; cols: num
               {r.priority && <Flag size={24} />}
             </span>
             <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 22, fontWeight: 600, color: "#5F6675", ...ellipsis }}>
-              <span style={{ width: 10, height: 10, flexShrink: 0, borderRadius: "50%", background: r.dot }} />
+              <PatternDot color={r.dot} pattern={r.pattern} size={20} />
               <span style={ellipsis}>{r.place}</span>
             </span>
           </span>

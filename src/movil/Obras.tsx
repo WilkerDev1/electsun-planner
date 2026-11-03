@@ -13,7 +13,7 @@ function Row({ job }: { job: MovilJob }) {
       state={fromState("Obras")}
       className={`flex w-full items-center gap-3 border-b border-[#F0F1F4] px-3.5 py-3 text-ink no-underline last:border-b-0 ${job.mine ? "bg-[#FFFCF9]" : "bg-white"}`}
     >
-      <CompanyMono company={job.company} />
+      <CompanyMono company={job.company} decorative />
       <span className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="flex min-w-0 items-center gap-1.5">
           <span className="truncate text-[16px] font-bold">{job.name}</span>

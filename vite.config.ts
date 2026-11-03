@@ -37,6 +37,15 @@ export default defineConfig({
         navigateFallbackAllowlist: [/^\/m(\/|$)/],
         navigateFallbackDenylist: [/^\/api\//],
         globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
+        // Logotipos de empresas (EQP-07): se sirven de la caché y se refrescan por detrás. La URL lleva ?v=<hash>, así que
+        // cada logotipo nuevo es otra entrada; las viejas salen al pasar de 50.
+        runtimeCaching: [
+          {
+            urlPattern: /\/api\/companies\/[0-9a-f-]{36}\/logo(\?|$)/,
+            handler: "StaleWhileRevalidate",
+            options: { cacheName: "company-logos", expiration: { maxEntries: 50 }, cacheableResponse: { statuses: [200] } },
+          },
+        ],
       },
     }),
   ],
