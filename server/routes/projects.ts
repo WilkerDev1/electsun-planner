@@ -64,6 +64,14 @@ const response = (project: Project, check: { warnings: string[]; coded: CodedWar
   coded_warnings: check.coded,
 });
 
+/** Al desarchivar no se bloquea nada: lo que la validación rechazaría hoy se devuelve como aviso con código `error`, junto a los avisos normales. */
+async function checkRestored(c: Parameters<typeof listStatuses>[0], project: Project) {
+  const status = await statusOf(c, project.status_id);
+  const check = await validateAgainstDb(c, { ...fieldsOf(project), id: project.id }, status, serverToday());
+  const coded: CodedWarning[] = [...check.errors.map((text) => ({ code: "error" as const, text })), ...check.coded];
+  return { warnings: coded.map((w) => w.text), coded_warnings: coded };
+}
+
 function failIfErrors(errors: string[]) {
   if (errors.length) throw httpError(422, errors.join(" "));
 }
@@ -176,12 +184,12 @@ for (const [path, archived] of [["archive", true], ["unarchive", false]] as cons
       if (!before) throw httpError(404, "Ese proyecto no existe.");
       if (version !== undefined && before.version !== version)
         throw httpError(409, "Otra persona cambió este proyecto. Se cargó la versión más reciente.");
-      if (before.archived === archived) return { project: before, changed: false };
+      if (before.archived === archived) return { project: before, changed: false, check: undefined };
       const project = await saveProject(c, before, { archived }, req.user!.id, archived ? "project.archive" : "project.unarchive");
-      return { project, changed: true };
+      return { project, changed: true, check: archived ? undefined : await checkRestored(c, project) };
     });
     if (out.changed) publishChange("project");
-    res.json({ ...out.project, warnings: [], coded_warnings: [] } satisfies ProjectResponse);
+    res.json({ ...out.project, ...(out.check ?? { warnings: [], coded_warnings: [] }) } satisfies ProjectResponse);
   });
 
 // PRY-10: archivar o desarchivar varios a la vez. Una transacción, un historial por proyecto y un solo aviso a las pantallas.
@@ -193,16 +201,21 @@ projects.post("/archive-bulk", authenticated, async (req, res) => {
     const locked = (await c.query("SELECT id FROM projects WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE", [ids])).rows;
     if (locked.length !== ids.length) throw httpError(404, "Alguno de los proyectos ya no existe. Recarga la lista.");
     let changed = 0;
+    const warnings: NonNullable<ArchiveBulkResult["warnings"]> = {};
     for (const { id } of locked) {
       const before = (await lockProject(c, id))!;
       if (versions?.[id] !== undefined && versions[id] !== before.version)
         throw httpError(409, `«${before.name}» cambió mientras lo elegías. Recarga la lista y vuelve a intentarlo.`);
       if (before.archived === archived) continue;
-      await saveProject(c, before, { archived }, req.user!.id, archived ? "project.archive" : "project.unarchive");
+      const saved = await saveProject(c, before, { archived }, req.user!.id, archived ? "project.archive" : "project.unarchive");
+      if (!archived) {
+        const check = await checkRestored(c, saved);
+        if (check.warnings.length) warnings[id] = check;
+      }
       changed++;
     }
     const byId = new Map((await listProjects(c, { ids })).map((p) => [p.id, p]));
-    return { projects: ids.map((id) => byId.get(id)!), changed };
+    return { projects: ids.map((id) => byId.get(id)!), changed, ...(archived ? {} : { warnings }) };
   });
   if (out.changed) publishChange("project");
   res.json(out);

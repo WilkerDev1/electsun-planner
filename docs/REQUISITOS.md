@@ -186,6 +186,7 @@ Referencia: `V4Proyectos.dc.html` (tabla y panel con `abierto`).
 **EST-05 [M]** Borrar un estado: `DELETE /api/statuses/:id` con `{ version, replacement_id? }`, solo el administrador.
 - `GET /api/statuses` trae `project_count` por estado, con los proyectos archivados incluidos.
 - Si algún proyecto lo usa, `replacement_id` es obligatorio (422 con cuántos proyectos lo usan). Los proyectos pasan al estado de reemplazo en la misma transacción, cada uno con su historial (`project.update`) y `version + 1`; el fin real y la regla de fechas siguen a EST-02 y VAL-01. Si el reemplazo es de otro tipo y a algún proyecto le faltan datos que ese estado exige (fechas, equipo, motivo), 422 con los nombres y no se cambia nada.
+- Los proyectos archivados pasan al reemplazo sin validar (decisión del coordinador): no bloquean el borrado aunque les falten datos. Al desarchivarlos (PRY-10), la respuesta trae sus avisos y errores de validación en `warnings` / `coded_warnings` (los errores con código `error`) sin bloquear; en `archive-bulk` van en `warnings`, por id.
 - No se puede borrar el último estado de su tipo (409). El estado de reemplazo no puede ser el mismo.
 - Responde `{ deleted_id, moved_projects }`, audita `status.delete` y llama a `publishChange("status")` (y `"project"` si se movieron proyectos).
 

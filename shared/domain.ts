@@ -364,7 +364,8 @@ export type ValidatableProject = Prep & {
   archived?: boolean;
 };
 
-export type WarningCode = "inicio_antes_venta" | "choque_equipo" | "prep_pendiente" | "atrasada";
+/** `error` solo sale al desarchivar: un dato que la validación rechazaría hoy, devuelto como aviso sin bloquear. */
+export type WarningCode = "inicio_antes_venta" | "choque_equipo" | "prep_pendiente" | "atrasada" | "error";
 export type CodedWarning = { code: WarningCode; text: string };
 
 /** `warnings` conserva solo los textos; `coded` lleva los mismos avisos, en el mismo orden, con su código. */

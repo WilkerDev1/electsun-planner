@@ -104,4 +104,6 @@ export type ArchiveBulkResult = {
   projects: Project[];
   /** Cuántos cambiaron de verdad (los que ya estaban así no se tocan). */
   changed: number;
+  /** Solo al desarchivar: avisos y errores de validación de cada proyecto que volvió a la lista, para corregirlos. No bloquean. */
+  warnings?: Record<string, { warnings: string[]; coded_warnings: CodedWarning[] }>;
 };

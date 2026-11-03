@@ -16,6 +16,8 @@ import {
 
 export const COLUMNS = "40px 44px 44px 170px minmax(210px, 1fr) 76px 104px 230px 150px 96px 134px 134px 250px 220px 124px";
 /** Ancho mínimo de la tabla: la suma de las columnas con el mínimo de «Proyecto». */
+/** Donde empieza la columna «Proyecto»: la suma de las cuatro columnas anteriores (casilla, #, prioridad, empresa). */
+export const PROJECT_COL_LEFT = COLUMNS.split(" ").slice(0, 4).reduce((sum, w) => sum + parseInt(w, 10), 0);
 export const TABLE_MIN_WIDTH = 2026;
 const cell = "flex items-center border-r border-line";
 
@@ -197,8 +199,8 @@ function AvisoPanel({ id, p, avisos, lk, onPatch, onOpen, bg }: { id: string; p:
   return (
     <div role="row" className="grid border-b border-line text-[13px]" style={{ gridTemplateColumns: COLUMNS, background: bg }}>
       <span role="cell" className="sticky left-0 z-[1]" style={{ gridColumn: "1 / 5", background: bg, boxShadow: "inset 3px 0 0 #F79009" }} />
-      <span role="cell" id={id} className="min-w-0 py-2 pl-1 pr-3" style={{ gridColumn: "5 / -1" }}>
-        <span className="sticky left-[104px] flex w-fit min-w-[320px] max-w-[calc(100vw-440px)] gap-2">
+      <span role="cell" id={id} className="min-w-0 py-2 pr-3" style={{ gridColumn: "5 / -1" }}>
+        <span className="sticky flex w-fit min-w-[320px] max-w-[calc(100vw-440px)] gap-2" style={{ left: PROJECT_COL_LEFT }}>
           <span aria-hidden className="select-none text-base leading-5 text-[#F79009]">↳</span>
           <ul className="m-0 flex min-w-0 list-none flex-col gap-1.5 p-0">
             <li className="sr-only">Avisos de {p.name}</li>

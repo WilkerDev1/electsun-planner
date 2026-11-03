@@ -844,6 +844,56 @@ test("archivar en bloque con versiones: una versión vencida cancela el lote (PR
   await ctx.request("/projects/archive-bulk", "POST", { ids: [a.id, b.id], archived: false }, ctx.office);
 });
 
+test("desarchivar devuelve los errores y avisos de validación sin bloquear (PRY-10, EST-05, B5)", async () => {
+  const [a, b] = await Promise.all(["Kevin Almánzar", "Oficina Evolta"].map(project));
+  await ctx.request("/projects/archive-bulk", "POST", { ids: [a.id, b.id], archived: true }, ctx.office);
+  // Estado incoherente de un archivado (lo que dejaría un borrado de estado): «Programado» sin fechas ni equipo
+  await pool.query("UPDATE projects SET status_id=(SELECT id FROM statuses WHERE name='Programado'), start_date=NULL, end_date=NULL, team_id=NULL WHERE id=ANY($1)", [[a.id, b.id]]);
+  const single = await ctx.request<ProjectResponse>(`/projects/${a.id}/unarchive`, "POST", {}, ctx.office);
+  assert.equal(single.status, 200);
+  assert.equal(single.data.archived, false);
+  assert.ok(single.data.coded_warnings.some((w) => w.code === "error" && /fecha de inicio y equipo/.test(w.text)));
+  assert.deepEqual(single.data.warnings, single.data.coded_warnings.map((w) => w.text));
+  // Archivar no trae avisos
+  const arch = await ctx.request<ProjectResponse>(`/projects/${a.id}/archive`, "POST", {}, ctx.office);
+  assert.deepEqual(arch.data.coded_warnings, []);
+  // En bloque: por id; archivar no trae `warnings`
+  const bulk = await ctx.request<ArchiveBulkResult>("/projects/archive-bulk", "POST", { ids: [a.id, b.id], archived: false }, ctx.office);
+  assert.equal(bulk.status, 200);
+  assert.equal(bulk.data.changed, 2);
+  for (const id of [a.id, b.id]) assert.ok(bulk.data.warnings![id].coded_warnings.some((w) => w.code === "error"), id);
+  const back = await ctx.request<ArchiveBulkResult>("/projects/archive-bulk", "POST", { ids: [a.id], archived: true }, ctx.office);
+  assert.equal(back.data.warnings, undefined);
+  await pool.query("UPDATE projects SET archived=false, status_id=$2, start_date=$3, end_date=$4, team_id=$5 WHERE id=$1", [a.id, a.status_id, a.start_date, a.end_date, a.team_id]);
+  await pool.query("UPDATE projects SET archived=false, status_id=$2, start_date=$3, end_date=$4, team_id=$5 WHERE id=$1", [b.id, b.status_id, b.start_date, b.end_date, b.team_id]);
+});
+
+test("catálogo de preparación: un nombre no puede coincidir con el código de otro parámetro, ni al revés (XLS-07, M2)", async () => {
+  const body = { pending_label: "espera", applies_to: "todos", default_on: false };
+  const pm = await prepByCode("PM");
+  // Nombre = código de otro, sin importar mayúsculas ni tildes
+  for (const name of ["PM", "pm", " Pm "]) {
+    const r = await ctx.request<{ message: string }>("/prep-items", "POST", { ...body, code: "XQ", name }, ctx.admin);
+    assert.equal(r.status, 422, name);
+    assert.match(r.data.message, /coincide con el código de/);
+  }
+  // Código = nombre de otro
+  const ok = await ctx.request<PrepItem>("/prep-items", "POST", { ...body, code: "XQ", name: "Roca" }, ctx.admin);
+  assert.equal(ok.status, 201);
+  const clash = await ctx.request<{ message: string }>("/prep-items", "POST", { ...body, code: "ROCA", name: "Otro" }, ctx.admin);
+  assert.equal(clash.status, 422);
+  assert.match(clash.data.message, /coincide con el nombre de/);
+  // En cambios
+  const xq = await prepByCode("XQ");
+  const rename = await ctx.request<{ message: string }>(`/prep-items/${xq.id}`, "PATCH", { version: xq.version, name: "pm" }, ctx.admin);
+  assert.equal(rename.status, 422);
+  assert.equal((await ctx.request(`/prep-items/${pm.id}`, "PATCH", { version: pm.version, code: "roca" }, ctx.admin)).status, 422);
+  // Su propio código como nombre no es un choque con otro
+  assert.equal((await ctx.request(`/prep-items/${xq.id}`, "PATCH", { version: xq.version, name: "XQ" }, ctx.admin)).status, 200);
+  const xqNow = await prepByCode("XQ");
+  await ctx.request(`/prep-items/${xqNow.id}`, "DELETE", { version: xqNow.version }, ctx.admin);
+});
+
 test("catálogo de preparación: nombres y códigos que chocan con columnas del Excel se rechazan (XLS-07, M2)", async () => {
   const body = { code: "ZZ", name: "Prueba", pending_label: "espera", applies_to: "todos", default_on: false };
   for (const name of ["Parte", "estado", "Observación", "Fin real", "Planos"]) {
@@ -872,7 +922,8 @@ test("Excel: un parámetro heredado cuyo nombre choca con una columna fija se le
     const pa = await prepByCode("PA");
     const dry = await upload(await book(["Contratista", "Proyecto", "Parte", "PA"], [["Evolta", "Kevin Almánzar", "pieza A", "Sí"]]), "0");
     assert.equal(dry.status, 200);
-    const kevin = await project("Kevin Almánzar");
+    const kevin = (await projects()).find((x) => x.name === "Kevin Almánzar" && x.part === "pieza A")!;
+    assert.ok(kevin, "la fila crea el proyecto con su parte");
     assert.equal(kevin.part, "pieza A"); // «Parte» sigue siendo la columna fija
     assert.deepEqual(kevin.prep.find((e) => e.item_id === pa.id), { item_id: pa.id, done: true }); // el parámetro, por su código
     const exported = Buffer.from((await ctx.request("/projects/export", "GET", undefined, ctx.admin)).data as ArrayBuffer);
