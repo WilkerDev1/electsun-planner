@@ -13,10 +13,20 @@ import { chunk, isStaleResponse, type Catalogs, type EditPatch } from "./model";
 // se vuelve a la última versión confirmada y se avisa.
 
 export type SaveState = "idle" | "saving" | "saved" | "error";
-type SavedProject = Project & { warnings?: string[] };
+type SavedProject = Project & { warnings?: string[]; coded_warnings?: { code: string; text: string }[] };
 type Queue = { busy: boolean; pending: EditPatch | null };
 
-const strip = ({ warnings: _w, ...project }: SavedProject): Project => project;
+const hasError = (w?: { code: string }[]) => !!w?.some((x) => x.code === "error");
+/** Avisos del servidor por proyecto: `undefined` borra la clave (así `warnOf` no usa avisos viejos). */
+const withWarnings = (prev: Record<string, string[]>, id: string, list: string[] | undefined) => {
+  if (list === undefined) {
+    if (!(id in prev)) return prev;
+    const { [id]: _drop, ...rest } = prev;
+    return rest;
+  }
+  return { ...prev, [id]: list };
+};
+const strip = ({ warnings: _w, coded_warnings: _c, ...project }: SavedProject): Project => project;
 
 export function useProjects(today: string, notify: (message: string, tone?: "ok" | "danger") => void) {
   const [rows, setRows] = useState<Project[] | null>(null);
@@ -196,13 +206,19 @@ export function useProjects(today: string, notify: (message: string, tone?: "ok"
       const base = confirmed.current.get(id);
       try {
         lastActivity.current = Date.now();
-        const done = strip(
-          await api<SavedProject>(`/projects/${id}/${archived ? "archive" : "unarchive"}`, { body: { version: base?.version } }),
-        );
+        const saved = await api<SavedProject>(`/projects/${id}/${archived ? "archive" : "unarchive"}`, { body: { version: base?.version } });
+        const done = strip(saved);
         lastActivity.current = Date.now();
         confirmed.current.set(id, done);
+        setServerWarnings((prev) => withWarnings(prev, id, archived ? undefined : saved.warnings ?? []));
         setRows((prev) => (prev ? prev.map((r) => (r.id === id ? done : r)) : prev));
-        notifyRef.current(archived ? "Proyecto archivado" : "Proyecto desarchivado");
+        notifyRef.current(
+          archived
+            ? "Proyecto archivado"
+            : hasError(saved.coded_warnings)
+              ? `Restaurado. Revisa los avisos de ${done.name}`
+              : "Proyecto desarchivado",
+        );
         return true;
       } catch (e) {
         if (e instanceof ApiError && e.status === 409) await refreshRow(id).catch(() => undefined);
@@ -217,6 +233,7 @@ export function useProjects(today: string, notify: (message: string, tone?: "ok"
   const archiveMany = useCallback(async (ids: string[], archived: boolean): Promise<number | null> => {
     await waitIdle(ids);
     let changed = 0;
+    let withErrors = 0;
     let failed: string | null = null;
     // El servidor admite hasta 200 ids por llamada: se trocea y se avisa si algún lote falla.
     for (const batch of chunk(ids)) {
@@ -226,6 +243,12 @@ export function useProjects(today: string, notify: (message: string, tone?: "ok"
         lastActivity.current = Date.now();
         const byId = new Map(out.projects.map((p) => [p.id, strip(p)]));
         for (const [id, p] of byId) confirmed.current.set(id, p);
+        setServerWarnings((prev) => {
+          let next = prev;
+          for (const id of byId.keys()) next = withWarnings(next, id, archived ? undefined : out.warnings?.[id]?.warnings ?? []);
+          return next;
+        });
+        for (const id of byId.keys()) if (!archived && hasError(out.warnings?.[id]?.coded_warnings)) withErrors++;
         setRows((prev) => (prev ? prev.map((r) => byId.get(r.id) ?? r) : prev));
         changed += out.changed;
       } catch (e) {
@@ -238,6 +261,7 @@ export function useProjects(today: string, notify: (message: string, tone?: "ok"
       await loadProjects().catch(() => undefined);
       return changed > 0 ? changed : null;
     }
+    if (withErrors) notifyRef.current(withErrors === 1 ? "Restaurado. Revisa los avisos de 1 proyecto" : `Restaurados. Revisa los avisos de ${withErrors} proyectos`);
     return changed;
   }, [loadProjects, waitIdle]);
 

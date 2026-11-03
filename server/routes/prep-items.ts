@@ -6,9 +6,8 @@ import { admin, authenticated } from "../auth.js";
 import { audit, diffOf } from "../audit.js";
 import { publishChange } from "../events.js";
 import { listPrepItems } from "../queries.js";
-import { reservedHeader } from "../xlsx.js";
+import { reservedHeader, squash } from "../xlsx.js";
 import { lockProject, prepByCode } from "../project-store.js";
-import { fold } from "../../shared/domain.js";
 import { MAX_PREP_ITEMS, PrepItemCreate, PrepItemDelete, PrepItemPatch, type PrepItem, type PrepItemDeleted } from "../../shared/contracts/prep.js";
 
 // Catálogo de preparación (PRY-12, CAL-07). Lo lee cualquier cuenta; solo el administrador lo escribe.
@@ -29,24 +28,24 @@ async function getItem(c: PoolClient, id: string): Promise<PrepItem | undefined>
 /** Serializa las altas y los cambios de nombre o código: el conteo y la unicidad se comprueban sin carreras. */
 const lockCatalog = (c: PoolClient) => c.query("SELECT pg_advisory_xact_lock(hashtext('prep_items'))");
 
-/** Código y nombre únicos (el nombre sin importar mayúsculas: es la cabecera de la columna en el Excel). */
+/** Código y nombre únicos con la misma clave que la importación de Excel (`squash`: sin mayúsculas, tildes ni signos). */
 async function assertUnique(c: PoolClient, f: { code?: string; name?: string }, exceptId?: string) {
-  if (f.code !== undefined) {
-    const r = await c.query("SELECT name FROM prep_items WHERE code=$1 AND ($2::uuid IS NULL OR id<>$2)", [f.code, exceptId ?? null]);
-    if (r.rowCount) throw httpError(409, `El código ${f.code} ya lo usa «${r.rows[0].name}».`);
-  }
-  if (f.name !== undefined) {
-    const r = await c.query("SELECT 1 FROM prep_items WHERE lower(name)=lower($1) AND ($2::uuid IS NULL OR id<>$2)", [f.name, exceptId ?? null]);
-    if (r.rowCount) throw httpError(409, `Ya existe un parámetro llamado «${f.name}».`);
-  }
-  // La cabecera del Excel de un parámetro es su nombre: no puede leerse como el código (sin mayúsculas ni tildes) de otro, ni al revés.
   const others = (await c.query("SELECT code,name FROM prep_items WHERE ($1::uuid IS NULL OR id<>$1)", [exceptId ?? null])).rows as { code: string; name: string }[];
+  if (f.code !== undefined) {
+    const hit = others.find((o) => o.code === f.code);
+    if (hit) throw httpError(409, `El código ${f.code} ya lo usa «${hit.name}».`);
+  }
   if (f.name !== undefined) {
-    const hit = others.find((o) => fold(o.code) === fold(f.name!));
+    const hit = others.find((o) => squash(o.name) === squash(f.name!));
+    if (hit) throw httpError(409, `Ya existe un parámetro llamado «${hit.name}».`);
+  }
+  // La cabecera del Excel de un parámetro es su nombre: no puede leerse como el código de otro, ni al revés.
+  if (f.name !== undefined) {
+    const hit = others.find((o) => squash(o.code) === squash(f.name!));
     if (hit) throw httpError(422, `El nombre «${f.name}» coincide con el código de «${hit.name}» (${hit.code}). Elige otro nombre.`);
   }
   if (f.code !== undefined) {
-    const hit = others.find((o) => fold(o.name) === fold(f.code!));
+    const hit = others.find((o) => squash(o.name) === squash(f.code!));
     if (hit) throw httpError(422, `El código «${f.code}» coincide con el nombre de «${hit.name}». Elige otro código.`);
   }
 }

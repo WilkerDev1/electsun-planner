@@ -29,7 +29,8 @@ type Col =
   | "company" | "name" | "kwp" | "sale" | "place" | "lead" | "team" | "start" | "end" | "status" | "notes"
   | "part" | "type" | "days";
 
-const squash = (s: string) => fold(s).replace(/[^a-z0-9]+/g, "");
+/** Clave de cabecera del Excel: sin mayúsculas, tildes ni signos. La comparten la importación y el catálogo de preparación. */
+export const squash = (s: string) => fold(s).replace(/[^a-z0-9]+/g, "");
 
 /** Cabeceras reconocidas (sin mayúsculas, tildes ni signos). Las primeras son las del Excel original (XLS-01). */
 const ALIASES: Record<Col, string[]> = {

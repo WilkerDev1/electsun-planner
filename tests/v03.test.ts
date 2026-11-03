@@ -868,6 +868,41 @@ test("desarchivar devuelve los errores y avisos de validación sin bloquear (PRY
   await pool.query("UPDATE projects SET archived=false, status_id=$2, start_date=$3, end_date=$4, team_id=$5 WHERE id=$1", [b.id, b.status_id, b.start_date, b.end_date, b.team_id]);
 });
 
+test("desarchivar en bloque dos proyectos del mismo equipo con fechas solapadas avisa en ambos (PRY-10, B5)", async () => {
+  const [a, b] = await Promise.all(["Kevin Almánzar", "Oficina Evolta"].map(project));
+  const team = (await pool.query("SELECT id FROM teams ORDER BY id LIMIT 1")).rows[0].id as string;
+  const prog = (await pool.query("SELECT id FROM statuses WHERE name='Programado'")).rows[0].id as string;
+  try {
+    await ctx.request("/projects/archive-bulk", "POST", { ids: [a.id, b.id], archived: true }, ctx.office);
+    await pool.query("UPDATE projects SET status_id=$2, team_id=$3, start_date='2031-03-03', end_date='2031-03-07' WHERE id=ANY($1)", [[a.id, b.id], prog, team]);
+    const bulk = await ctx.request<ArchiveBulkResult>("/projects/archive-bulk", "POST", { ids: [a.id, b.id], archived: false }, ctx.office);
+    assert.equal(bulk.status, 200);
+    for (const id of [a.id, b.id]) assert.ok(bulk.data.warnings![id]?.warnings.length, `sin aviso de choque para ${id}`);
+  } finally {
+    for (const x of [a, b])
+      await pool.query("UPDATE projects SET archived=false, status_id=$2, start_date=$3, end_date=$4, team_id=$5 WHERE id=$1", [x.id, x.status_id, x.start_date, x.end_date, x.team_id]);
+  }
+});
+
+test("catálogo de preparación: la unicidad usa la misma clave que el Excel (P.M. y PM, Permiso-1 y Permiso 1)", async () => {
+  const body = { pending_label: "espera", applies_to: "todos", default_on: false };
+  try {
+    const dotted = await ctx.request<{ message: string }>("/prep-items", "POST", { ...body, code: "XQ", name: "P.M." }, ctx.admin);
+    assert.equal(dotted.status, 422);
+    assert.match(dotted.data.message, /coincide con el código de/);
+    const first = await ctx.request("/prep-items", "POST", { ...body, code: "XQ", name: "Permiso 1" }, ctx.admin);
+    assert.equal(first.status, 201);
+    const second = await ctx.request<{ message: string }>("/prep-items", "POST", { ...body, code: "XS", name: "Permiso-1" }, ctx.admin);
+    assert.equal(second.status, 409);
+    assert.equal((await ctx.request("/prep-items", "POST", { ...body, code: "XR", name: "Per.m" }, ctx.admin)).status, 201);
+    const byCode = await ctx.request<{ message: string }>("/prep-items", "POST", { ...body, code: "PERM", name: "Otro nombre" }, ctx.admin);
+    assert.equal(byCode.status, 422);
+    assert.match(byCode.data.message, /coincide con el nombre de/);
+  } finally {
+    await pool.query("DELETE FROM prep_items WHERE code IN ('XQ','XR','XS','PERM')");
+  }
+});
+
 test("catálogo de preparación: un nombre no puede coincidir con el código de otro parámetro, ni al revés (XLS-07, M2)", async () => {
   const body = { pending_label: "espera", applies_to: "todos", default_on: false };
   const pm = await prepByCode("PM");
@@ -878,20 +913,24 @@ test("catálogo de preparación: un nombre no puede coincidir con el código de 
     assert.match(r.data.message, /coincide con el código de/);
   }
   // Código = nombre de otro
-  const ok = await ctx.request<PrepItem>("/prep-items", "POST", { ...body, code: "XQ", name: "Roca" }, ctx.admin);
-  assert.equal(ok.status, 201);
-  const clash = await ctx.request<{ message: string }>("/prep-items", "POST", { ...body, code: "ROCA", name: "Otro" }, ctx.admin);
-  assert.equal(clash.status, 422);
-  assert.match(clash.data.message, /coincide con el nombre de/);
-  // En cambios
-  const xq = await prepByCode("XQ");
-  const rename = await ctx.request<{ message: string }>(`/prep-items/${xq.id}`, "PATCH", { version: xq.version, name: "pm" }, ctx.admin);
-  assert.equal(rename.status, 422);
-  assert.equal((await ctx.request(`/prep-items/${pm.id}`, "PATCH", { version: pm.version, code: "roca" }, ctx.admin)).status, 422);
-  // Su propio código como nombre no es un choque con otro
-  assert.equal((await ctx.request(`/prep-items/${xq.id}`, "PATCH", { version: xq.version, name: "XQ" }, ctx.admin)).status, 200);
-  const xqNow = await prepByCode("XQ");
-  await ctx.request(`/prep-items/${xqNow.id}`, "DELETE", { version: xqNow.version }, ctx.admin);
+  try {
+    const ok = await ctx.request<PrepItem>("/prep-items", "POST", { ...body, code: "XQ", name: "Roca" }, ctx.admin);
+    assert.equal(ok.status, 201);
+    const clash = await ctx.request<{ message: string }>("/prep-items", "POST", { ...body, code: "ROCA", name: "Otro" }, ctx.admin);
+    assert.equal(clash.status, 422);
+    assert.match(clash.data.message, /coincide con el nombre de/);
+    // En cambios
+    const xq = await prepByCode("XQ");
+    const rename = await ctx.request<{ message: string }>(`/prep-items/${xq.id}`, "PATCH", { version: xq.version, name: "pm" }, ctx.admin);
+    assert.equal(rename.status, 422);
+    assert.equal((await ctx.request(`/prep-items/${pm.id}`, "PATCH", { version: pm.version, code: "roca" }, ctx.admin)).status, 422);
+    // Su propio código como nombre no es un choque con otro
+    assert.equal((await ctx.request(`/prep-items/${xq.id}`, "PATCH", { version: xq.version, name: "XQ" }, ctx.admin)).status, 200);
+    const xqNow = await prepByCode("XQ");
+    await ctx.request(`/prep-items/${xqNow.id}`, "DELETE", { version: xqNow.version }, ctx.admin);
+  } finally {
+    await pool.query("DELETE FROM prep_items WHERE code=$1", ["XQ"]);
+  }
 });
 
 test("catálogo de preparación: nombres y códigos que chocan con columnas del Excel se rechazan (XLS-07, M2)", async () => {

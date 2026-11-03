@@ -202,18 +202,21 @@ projects.post("/archive-bulk", authenticated, async (req, res) => {
     if (locked.length !== ids.length) throw httpError(404, "Alguno de los proyectos ya no existe. Recarga la lista.");
     let changed = 0;
     const warnings: NonNullable<ArchiveBulkResult["warnings"]> = {};
+    const restored: Project[] = [];
     for (const { id } of locked) {
       const before = (await lockProject(c, id))!;
       if (versions?.[id] !== undefined && versions[id] !== before.version)
         throw httpError(409, `«${before.name}» cambió mientras lo elegías. Recarga la lista y vuelve a intentarlo.`);
       if (before.archived === archived) continue;
-      const saved = await saveProject(c, before, { archived }, req.user!.id, archived ? "project.archive" : "project.unarchive");
-      if (!archived) {
-        const check = await checkRestored(c, saved);
-        if (check.warnings.length) warnings[id] = check;
-      }
+      restored.push(await saveProject(c, before, { archived }, req.user!.id, archived ? "project.archive" : "project.unarchive"));
       changed++;
     }
+    // Se valida después de guardar todos, para que los choques entre proyectos restaurados juntos salgan en ambos.
+    if (!archived)
+      for (const saved of restored) {
+        const check = await checkRestored(c, saved);
+        if (check.warnings.length) warnings[saved.id] = check;
+      }
     const byId = new Map((await listProjects(c, { ids })).map((p) => [p.id, p]));
     return { projects: ids.map((id) => byId.get(id)!), changed, ...(archived ? {} : { warnings }) };
   });

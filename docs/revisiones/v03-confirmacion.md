@@ -158,3 +158,5 @@ Cambio de prueba adicional: la prueba del Excel con el parámetro heredado «Par
 Comprobado: `npm run typecheck`, `npm test` (176 de 176, con la base de pruebas recreada), `npx vite build` y `npx playwright test e2e/v03-proyectos.spec.ts` (3 de 3).
 
 Playwright completo (`npx playwright test`): 17 de 17.
+
+Correcciones de la revisión final: el cliente (`setArchived` y `archiveMany`) usa los avisos del servidor al desarchivar y los borra al archivar, con un aviso breve si hay errores; `archive-bulk` guarda todos y valida después, así los choques entre proyectos restaurados juntos salen en ambos; el catálogo de preparación compara nombre y código con `squash` (exportada desde `server/xlsx.ts`, la misma clave que el Excel); y la prueba que crea «XQ» limpia en `finally`.
