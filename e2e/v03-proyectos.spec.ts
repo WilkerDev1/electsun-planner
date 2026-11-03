@@ -13,7 +13,10 @@ async function violations(page: Page) {
 test("un aviso cuelga de su proyecto y se abre y se cierra (VAL-10)", async ({ page }) => {
   await login(page, ADMIN);
   await page.goto("/proyectos");
-  const trigger = page.locator('button[aria-controls^="aviso-"]').first();
+  // aria-controls solo existe con el panel abierto: el disparador se fija por su aria-label (title "Ver/Ocultar los avisos").
+  const label = await page.locator('button[aria-expanded][title$="los avisos"]').first().getAttribute("aria-label");
+  expect(label).toBeTruthy();
+  const trigger = page.getByRole("button", { name: label!, exact: true });
   await expect(trigger).toBeVisible();
   const abierto = (await trigger.getAttribute("aria-expanded")) === "true";
   await trigger.click();
@@ -23,7 +26,6 @@ test("un aviso cuelga de su proyecto y se abre y se cierra (VAL-10)", async ({ p
   // La preferencia se recuerda al recargar.
   await trigger.click();
   const after = await trigger.getAttribute("aria-expanded");
-  const label = await trigger.getAttribute("aria-label");
   await page.reload();
   await expect(page.getByRole("button", { name: label!, exact: true })).toHaveAttribute("aria-expanded", after!);
   expect(await violations(page)).toEqual([]);
