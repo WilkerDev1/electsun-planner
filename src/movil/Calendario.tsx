@@ -77,8 +77,10 @@ function AgendaRow({ day, team }: { day: AgendaDay; team: string }) {
 }
 
 function Bar({ bar, nextFree }: { bar: TimelineBar; nextFree: number }) {
-  const left = bar.col * COL + 3;
-  const width = bar.span * COL - 6;
+  // span 0: la barra planificada quedó fuera de la ventana y solo se ve el tramo de atraso.
+  const onlyOverrun = bar.span === 0 && !!bar.overrun;
+  const left = onlyOverrun ? bar.overrun!.col * COL + 3 : bar.col * COL + 3;
+  const width = onlyOverrun ? bar.overrun!.span * COL - 6 : bar.span * COL - 6;
   const label = bar.name.length * 8.5 + 24;
   const inside = label <= width;
   // Fuera de la barra el nombre va a la derecha (después del tramo de atraso) o, si no cabe, a su izquierda.
@@ -96,23 +98,23 @@ function Bar({ bar, nextFree }: { bar: TimelineBar; nextFree: number }) {
         className="absolute top-0 flex h-11 items-center overflow-clip p-0 text-ink no-underline"
         style={{ left, width }}
       >
-        <span
+        {!onlyOverrun && <span
           aria-hidden
           className="absolute inset-x-0 top-[7px] h-[30px] overflow-clip border-[1.5px]"
           style={{ borderColor: color, borderRadius: radius, background: bar.kind === "en_obra" ? "#DCF3E5" : "#E9EDFF" }}
         >
           <span className="absolute inset-y-0 left-0" style={{ width: `${(bar.done_cols / bar.span) * 100}%`, background: "#A6E0BD" }} />
-        </span>
+        </span>}
         {/* overflow-clip (no hidden) deja que el nombre quede fijo junto a la columna de equipos al deslizar. */}
         {inside && <span className="sticky truncate px-2.5 text-[14px] font-bold" style={{ left: GUT }}>{bar.name}</span>}
       </Link>
       {bar.overrun && (
         <span
           aria-hidden
-          className="absolute top-[7px] h-[30px] rounded-r-lg border-[1.5px] border-l-0 border-dashed border-[#F59E0B]"
+          className={`absolute top-[7px] h-[30px] border-[1.5px] border-dashed border-[#F59E0B] ${onlyOverrun ? "rounded-lg" : "rounded-r-lg border-l-0"}`}
           style={{
-            left: bar.overrun.col * COL - 3,
-            width: bar.overrun.span * COL,
+            left: onlyOverrun ? left : bar.overrun.col * COL - 3,
+            width: onlyOverrun ? width : bar.overrun.span * COL,
             background: "repeating-linear-gradient(135deg, #FFF4DB 0, #FFF4DB 6px, #FFFAEB 6px, #FFFAEB 12px)",
           }}
         />

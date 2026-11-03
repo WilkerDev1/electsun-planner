@@ -137,7 +137,7 @@ export async function importProjects(
   // Catálogos
   const statusRows = await c.query("SELECT id,name,kind,sort,fg,bg,dot,requires_schedule,requires_reason,version FROM statuses ORDER BY sort,name");
   const companyRows = await c.query("SELECT id,name,code FROM companies");
-  const teamRows = await c.query("SELECT id,name,code FROM teams");
+  const teamRows = await c.query("SELECT id,name,code,active FROM teams");
   const employeeRows = await c.query("SELECT id,name FROM employees");
   const statuses = statusRows.rows as Status[];
   const statusByName = new Map(statuses.map((s) => [fold(s.name), s]));
@@ -150,10 +150,12 @@ export async function importProjects(
   }
   const teamBy = new Map<string, string>();
   const teamCode = new Map<string, string>();
+  const inactiveTeams = new Set<string>();
   for (const x of teamRows.rows) {
     teamBy.set(fold(x.name), x.id);
     teamBy.set(fold(x.code), x.id);
     teamCode.set(x.id, x.code);
+    if (!x.active) inactiveTeams.add(x.id);
   }
   const employeeBy = new Map<string, string>(employeeRows.rows.map((x) => [fold(x.name), x.id]));
 
@@ -310,6 +312,11 @@ export async function importProjects(
     }
     if (merged.estimated_days !== null && merged.estimated_days > 120) {
       rows.push({ row: n, action: "error", name: label, messages: ["La obra supera los 120 días laborables."] });
+      continue;
+    }
+    // Igual que en la tabla: no se asigna un equipo desactivado, salvo el que el proyecto ya tenía.
+    if (merged.team_id && inactiveTeams.has(merged.team_id) && merged.team_id !== prev?.team_id) {
+      rows.push({ row: n, action: "error", name: label, messages: [`El equipo ${teamCode.get(merged.team_id)} está desactivado. Elige otro equipo.`] });
       continue;
     }
     const id = prev?.id ?? crypto.randomUUID();

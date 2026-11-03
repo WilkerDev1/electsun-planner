@@ -561,3 +561,12 @@ test("un equipo desactivado no recibe obras, salvo que ya fuera el del proyecto 
   assert.equal(keep.data.team_id, created.data.id);
   await pool.query("UPDATE projects SET team_id=NULL WHERE name='Kevin Almánzar'");
 });
+
+test("importar: no asigna un equipo desactivado (EQP-06, VAL)", async () => {
+  await pool.query("INSERT INTO teams(id,code,name,active) VALUES(gen_random_uuid(),'E9','Equipo 9',false)");
+  const row = [["EcoSur", "Obra con equipo apagado", 5, null, "Haina", null, "E9", null, null, "Por programar", null]];
+  const r = await upload(await workbook(row), "1");
+  assert.equal(r.data.rows[0].action, "error");
+  assert.match(r.data.rows[0].messages.join(" "), /desactivado/);
+  await pool.query("DELETE FROM teams WHERE code='E9'");
+});
