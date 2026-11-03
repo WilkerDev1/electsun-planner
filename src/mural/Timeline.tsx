@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import { longDate } from "../../shared/domain";
 import { shortName, type MuralModel, type TimelineGroup, type TimelineRow, type WaitingItem } from "../../shared/mural-model";
-import { ACCENT, FONT, Flag, SunLogo, ellipsis, hhmm, pct, updatedText, type ScreenProps } from "./shared";
+import { ACCENT, Clock, FONT, Flag, SunLogo, TODAY_COLOR, ellipsis, pct, updatedText, type ScreenProps } from "./shared";
 
 // Diseño "timeline por fila" (design/v4/V4Mural.dc.html, MUR-08): una fila por proyecto activo con su barra.
 
@@ -85,7 +85,7 @@ function Header({ model, showClock, live, today }: { model: MuralModel; showCloc
           {showClock && <span style={{ fontSize: 24, fontWeight: 700 }}>{longDate(today)}</span>}
           <span style={{ fontSize: 22, fontWeight: 500, color: live.offline ? "#B54708" : "#5F6675" }}>{updatedText(live, "Actualizado a las")}</span>
         </div>
-        {showClock && <span style={{ fontSize: 68, fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1 }}>{hhmm(live.now)}</span>}
+        {showClock && <Clock style={{ fontSize: 68, fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1 }} />}
       </div>
     </header>
   );
@@ -111,7 +111,7 @@ function Board({ model, groups }: { model: MuralModel; groups: Fitted[] }) {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, paddingBottom: 6 }}>
             {t.days.map((d, i) => (
-              <span key={i} style={{ textAlign: "center", fontSize: 22, fontWeight: d.today ? 800 : 600, color: d.today ? "#FFFFFF" : d.saturday ? "#5F6675" : "#3F4859", background: d.today ? "#C2410C" : "transparent", borderRadius: 8, margin: "0 2px" }}>{d.n}</span>
+              <span key={i} style={{ textAlign: "center", fontSize: 22, fontWeight: d.today ? 800 : 600, color: d.today ? "#FFFFFF" : d.saturday ? "#5F6675" : "#3F4859", background: d.today ? TODAY_COLOR : "transparent", borderRadius: 8, margin: "0 2px" }}>{d.n}</span>
             ))}
           </div>
         </div>
@@ -216,7 +216,7 @@ function GroupRows({ f, cols, weeks, todayCol, todayAt }: { f: Fitted; cols: num
                 }}
               />
             )}
-            {todayAt !== null && <div style={{ position: "absolute", top: 0, bottom: 0, left: `${(todayAt * 100).toFixed(3)}%`, width: 2, marginLeft: -1, background: "#C2410C" }} />}
+            {todayAt !== null && <div style={{ position: "absolute", top: 0, bottom: 0, left: `${(todayAt * 100).toFixed(3)}%`, width: 2, marginLeft: -1, background: TODAY_COLOR }} />}
           </div>
         </div>
       ))}

@@ -187,6 +187,9 @@ export function shortName(name: string): string {
   return clean;
 }
 
+/** Fin con el que se dibuja y se mide el atraso: sin fecha de fin (o anterior al inicio) vale el día de inicio, como en el móvil (CAL-06, MUR-03). */
+const endOf = (p: Project, start: ISODate): ISODate => (p.end_date && p.end_date >= start ? p.end_date : start);
+
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const WEEKDAY_CAP = (iso: ISODate) => cap(dayLabel(iso).split(" ")[0]);
 
@@ -209,10 +212,10 @@ function sumKwp(list: Project[]): string {
   return (Math.round(cents / 10) / 10).toFixed(1);
 }
 
-const LABEL_PX_PER_CHAR = 8.6;
+const LABEL_PX_PER_CHAR = 12.6;
 const LABEL_PAD = 22;
-/** Ancho aproximado de la cuadrícula del calendario (px) en el lienzo de 1920. */
-const CAL_GRID_PX = 612;
+/** Ancho aproximado de la cuadrícula del calendario (px) en el lienzo de 1920, con la letra de 22 px (MUR-01). */
+const CAL_GRID_PX = 648;
 
 function statusStyle(statuses: Status[], kind: StatusKind, fallback: StatusStyle): StatusStyle {
   const s = statuses.filter((x) => x.kind === kind).sort((a, b) => a.sort - b.sort)[0];
@@ -265,7 +268,8 @@ export function muralModel(input: MuralInput, settings: MuralSettings, today: IS
 
   // --- Indicadores (MUR-02)
   const horizon = addDays(today, UPCOMING_DAYS);
-  const upcoming = prog.filter((p) => p.start_date && p.start_date <= horizon);
+  // "Próximos": programados que empiezan entre hoy y dentro de 14 días; con el inicio ya pasado no cuentan (MUR-02).
+  const upcoming = prog.filter((p) => p.start_date && startsIn(p.start_date, today).days >= 0 && p.start_date <= horizon);
   const finishedMonth = projects.filter((p) => p.actual_end && p.actual_end.slice(0, 7) === today.slice(0, 7));
   const kpis: MuralKpi[] = [
     { key: "obra", n: obra.length, label: "En obra", sub: `${sumKwp(obra)} kWp`, tone: "ok" },
@@ -285,19 +289,18 @@ export function muralModel(input: MuralInput, settings: MuralSettings, today: IS
   const rows: ActiveRow[] = [...obra, ...prog].map((p) => {
     const t = p.team_id ? team.get(p.team_id) : undefined;
     const isObra = p.status_kind === "en_obra";
-    const late = lateDays(p.status_kind, p.end_date, today);
     let progress: ActiveRow["progress"] = null;
     if (isObra && p.start_date) {
-      const d = dayOf(p.start_date, p.end_date, today);
-      const endIn = p.end_date ? diffDays(today, p.end_date) : null;
-      const endLabel = p.end_date ? endDay(p.end_date, today) : "";
+      const end = endOf(p, p.start_date);
+      const late = lateDays(p.status_kind, end, today);
+      const d = dayOf(p.start_date, end, today);
+      const endIn = diffDays(today, end);
+      const endLabel = endDay(end, today);
       progress = {
         text: late ? lateText(late) : d.text,
         endText: late
           ? `venció ${endLabel}`
-          : endIn === null
-            ? ""
-            : endIn === 0
+          : endIn === 0
               ? "termina hoy"
               : endIn === 1
                 ? "termina mañana"
@@ -344,15 +347,16 @@ export function muralModel(input: MuralInput, settings: MuralSettings, today: IS
   const barOf = (p: Project): CalBar | null => {
     if (!p.start_date) return null;
     const isObra = p.status_kind === "en_obra";
-    const end = p.end_date ?? p.start_date;
+    const end = endOf(p, p.start_date);
     const placed = placeBar(p.start_date, end, from, weeks);
-    const over = isObra && p.end_date ? overrunBar(p.end_date, today, from, weeks) : null;
+    const over = isObra ? overrunBar(end, today, from, weeks) : null;
     if (!placed.visible && !over) return null;
     const col = placed.visible ? placed.col : over!.col;
     const span = placed.visible ? placed.span : 0;
     const name = shortName(p.name);
     const need = name.length * LABEL_PX_PER_CHAR + LABEL_PAD;
-    const inside = span > 0 && (placed.labelInside || need <= span * colPx);
+    // Con la letra de 22 px una barra de 5 columnas ya no basta en 3 o 4 semanas: solo va dentro si el nombre cabe.
+    const inside = span > 0 && need <= span * colPx;
     const lastCol = over ? over.col + over.span - 1 : col + span - 1;
     const roomRight = (cols - 1 - lastCol) * colPx >= need + 10;
     return {
@@ -437,12 +441,12 @@ export function muralModel(input: MuralInput, settings: MuralSettings, today: IS
   const timelineRow = (p: Project): TimelineRow | null => {
     if (!p.start_date) return null;
     const isObra = p.status_kind === "en_obra";
-    const end = p.end_date ?? p.start_date;
+    const end = endOf(p, p.start_date);
     const placed = placeBar(p.start_date, end, from, weeks);
-    const over = isObra && p.end_date ? overrunBar(p.end_date, today, from, weeks) : null;
+    const over = isObra ? overrunBar(end, today, from, weeks) : null;
     const t = p.team_id ? team.get(p.team_id) : undefined;
-    const late = lateDays(p.status_kind, p.end_date, today);
-    const endText = p.end_date ? endDay(p.end_date, today) : "";
+    const late = lateDays(p.status_kind, end, today);
+    const endText = endDay(end, today);
     const parts = [
       p.place,
       settings.show_notes && p.part.trim() ? p.part.trim().toLowerCase() : "",
@@ -451,18 +455,16 @@ export function muralModel(input: MuralInput, settings: MuralSettings, today: IS
     let when: string;
     let whenSub: string;
     if (isObra) {
-      const d = dayOf(p.start_date, p.end_date, today);
-      const endIn = p.end_date ? diffDays(today, p.end_date) : null;
+      const d = dayOf(p.start_date, end, today);
+      const endIn = diffDays(today, end);
       when = late ? lateText(late) : d.text;
       whenSub = late
         ? `venció ${endText}`
-        : endIn === null
-          ? ""
-          : endIn === 0
-            ? "termina hoy"
-            : endIn === 1
-              ? "termina mañana"
-              : `termina ${endText}`;
+        : endIn === 0
+          ? "termina hoy"
+          : endIn === 1
+            ? "termina mañana"
+            : `termina ${endText}`;
     } else {
       when = datesLabel(p.start_date, p.start_date);
       whenSub = plural(countWorkdays(p.start_date, end), "día", "días");
