@@ -42,7 +42,7 @@ export default function Hoy() {
         {job ? (
           <div className="flex flex-col gap-3.5 p-4">
             <div className="flex items-start gap-3">
-              <CompanyMono company={job.company} size={44} round={false} />
+              <CompanyMono company={job.company} size={44} round={false} decorative />
               <div className="flex min-w-0 flex-col gap-0.5">
                 <span className="flex items-center gap-2">
                   <span className="text-[22px] font-extrabold leading-tight tracking-tight">{job.name}</span>

@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { longDate } from "../../shared/domain";
 import type { ActiveRow, CalBar, CalTeam, KpiTone, MuralModel, WaitingItem } from "../../shared/mural-model";
 import { ACCENT, Clock, FONT, Flag, SunLogo, TODAY_COLOR, TodayLine, ellipsis, pct, updatedText, type ScreenProps } from "./shared";
+import { MuralMark, PatternDot } from "./Mark";
 
 // Diseño principal del mural (design/v4/V4MuralPrincipal.dc.html): tabla de activos + calendario por equipo.
 // Todo el lienzo mide 1920×1080 (MUR-01) y todo el texto mide 22 px o más (MUR-01, NF-04); los números llevan tabular-nums.
@@ -149,7 +150,7 @@ function ActiveItem({ r }: { r: ActiveRow }) {
   return (
     <div style={{ height: ACTIVE_ROW_H, flexShrink: 0, padding: "0 24px", display: "grid", gridTemplateColumns: COLS, columnGap: 12, alignItems: "center", borderBottom: "1px solid #F0F1F4", boxSizing: "border-box" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-        <div style={{ width: 46, height: 46, flexShrink: 0, borderRadius: "50%", background: r.company.bg, color: r.company.fg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 800, letterSpacing: "-0.03em" }}>{r.company.code}</div>
+        <MuralMark company={r.company} size={46} />
         <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1, lineHeight: 1.15 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
             <span style={{ fontSize: 28, fontWeight: 700, ...ellipsis }}>{r.name}</span>
@@ -344,7 +345,7 @@ function WaitingChip({ b }: { b: WaitingItem }) {
   const s = WAIT_STYLE[b.tone];
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, height: CHIP_H, flexShrink: 0, padding: "0 12px", background: s.bg, border: `1px solid ${s.border}`, borderRadius: 10, boxSizing: "border-box" }}>
-      <span style={{ width: 10, height: 10, flexShrink: 0, borderRadius: "50%", background: b.tone === "pause" ? "#D63B6A" : b.company.dot }} />
+      {b.tone === "pause" ? <span aria-hidden style={{ width: 10, height: 10, flexShrink: 0, borderRadius: "50%", background: "#D63B6A" }} /> : <PatternDot color={b.company.color} pattern={b.company.pattern} size={20} />}
       <span style={{ flex: "0 1 auto", minWidth: 0, maxWidth: "50%", fontSize: 22, fontWeight: 700, color: s.fg, ...ellipsis }}>{b.name}</span>
       {b.priority && <Flag size={22} />}
       <span style={{ flex: "1 1 0", minWidth: 0, textAlign: "right", fontSize: 22, fontWeight: 700, color: s.sub, ...ellipsis }}>{b.sub}</span>
