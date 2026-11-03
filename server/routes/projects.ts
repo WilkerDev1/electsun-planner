@@ -136,9 +136,11 @@ projects.post("/", authenticated, async (req, res) => {
     if (merged.estimated_days !== null && merged.estimated_days > 120)
       throw httpError(422, "La obra no puede pasar de 120 días laborables.");
     await assertTeamAssignable(c, merged.team_id);
-    const check = await validateAgainstDb(c, { ...merged, id: "" }, status, today);
+    // El id se genera antes de validar: la comprobación de equipo excluye "este" proyecto por id (uuid), y un id vacío no es un uuid.
+    const id = crypto.randomUUID();
+    const check = await validateAgainstDb(c, { ...merged, id }, status, today);
     failIfErrors(check.errors);
-    return { project: await insertProject(c, merged, req.user!.id), check };
+    return { project: await insertProject(c, merged, req.user!.id, id), check };
   });
   publishChange("project");
   res.status(201).json(response(out.project, out.check));

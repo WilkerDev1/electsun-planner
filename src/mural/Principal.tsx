@@ -1,48 +1,51 @@
-import type { CSSProperties } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { longDate } from "../../shared/domain";
-import type { ActiveRow, CalBar, CalTeam, KpiTone, MuralModel, WaitingItem } from "../../shared/mural-model";
+import type { ActiveRow, CalBar, CalTeam, KpiTone, MeterItem, MuralModel, NoticeLine, WaitingItem } from "../../shared/mural-model";
 import { ACCENT, Clock, FONT, Flag, SunLogo, TODAY_COLOR, TodayLine, ellipsis, pct, updatedText, type ScreenProps } from "./shared";
 import { MuralMark, PatternDot } from "./Mark";
+import { Marquee, PageNumber, Paged, usePages } from "./Rotate";
+import { NO_PAGES, useFit, type FitOptions, type Piece, type Rich } from "./Fit";
 
 // Diseño principal del mural (design/v4/V4MuralPrincipal.dc.html): tabla de activos + calendario por equipo.
 // Todo el lienzo mide 1920×1080 (MUR-01) y todo el texto mide 22 px o más (MUR-01, NF-04); los números llevan tabular-nums.
 // Reparto vertical del lienzo: 1080 − relleno 56 − cabecera 72 − indicadores 88 − pie 72 − 3 separaciones de 20 = 732 px de contenido.
+// Lo que no cabe rota (Rotate.tsx): las listas y el calendario pasan de página, y las líneas horizontales van en marquesina.
 
 const KPI_COLOR: Record<KpiTone, string> = { ok: "#157F3D", indigo: "#3B4FC4", slate: "#475467", brand: "#C2410C" };
 const GAP = 20;
 const CONTENT_H = 732;
+/** Filas de "Instalaciones activas" por página. */
 const ACTIVE_ROWS = 7;
 const ACTIVE_ROW_H = 80;
 const LIST_W = 1080;
 const CAL_ROW_MAX = 40;
 const CAL_ROW_MIN = 30;
-/** Alto fijo del calendario fuera de las filas: relleno, título, leyenda y días de la semana. */
-const CAL_CHROME = 168;
+/** Alto de la cabecera de cada equipo: relleno 6 + 6 y borde de 1 px. */
 const TEAM_PAD = 13;
-const CHIP_H = 42;
+/** Ficha de "Por programar": al menos 56 px, más si el motivo ocupa varias líneas. */
+const CHIP_H = 56;
 const CHIP_GAP = 6;
 const METER_H = 42;
 
 const card: CSSProperties = { background: "#FFFFFF", border: "1px solid #E6E8EC", borderRadius: 20, boxSizing: "border-box" };
 const COLS = "minmax(0, 1fr) 170px 80px 150px 220px";
 
-/** Alto de "Por programar" según lo que se muestre: cuántas tarjetas caben y si hay medidor. */
-function waitingLayout(model: MuralModel, waitingShown: boolean) {
-  const meterShown = model.meter.items.length > 0;
-  const total = model.waiting.items.length + model.waiting.more;
-  const maxChips = meterShown ? 2 : 3;
-  const chips = waitingShown ? model.waiting.items.slice(0, maxChips) : [];
-  const hidden = waitingShown ? total - chips.length : 0;
-  const listH = chips.length ? chips.length * CHIP_H + (chips.length - 1) * CHIP_GAP : 30;
-  const waitH = waitingShown ? 30 + 34 + 8 + listH : 0;
-  const height = waitH + (meterShown ? (waitingShown ? 8 + METER_H : 30 + METER_H) : 0);
-  return { chips, hidden, height };
+/** Alto de la lista de "Por programar": tres fichas, o dos si hay medidor. Fijo: el calendario no cambia de tamaño al rotar. */
+const listArea = (meterShown: boolean) => (meterShown ? 2 * CHIP_H + CHIP_GAP : 3 * CHIP_H + 2 * CHIP_GAP);
+
+/** "Por programar": alto de la sección según lo que muestre. Cabecera 34 + 8, lista fija y medidor de 42 + 8. */
+function waitingHeight(meterShown: boolean, waitingShown: boolean) {
+  if (!waitingShown && !meterShown) return 0;
+  let h = 30; // relleno de 14 arriba y abajo más el borde de 1 px de la tarjeta
+  if (waitingShown) h += 34 + 8 + listArea(meterShown);
+  if (meterShown) h += (waitingShown ? 8 : 0) + METER_H;
+  return h;
 }
 
 export function Principal({ view, live }: ScreenProps) {
   const { model, settings } = view;
   const waitingShown = settings.show_waiting;
-  const wait = waitingLayout(model, waitingShown);
+  const waitH = waitingHeight(model.meter.items.length > 0, waitingShown);
   return (
     <div
       style={{
@@ -66,8 +69,8 @@ export function Principal({ view, live }: ScreenProps) {
       <div style={{ height: CONTENT_H, flexShrink: 0, display: "flex", gap: 24 }}>
         <ActiveList model={model} />
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: GAP }}>
-          <Calendar model={model} bottomH={wait.height} />
-          {wait.height > 0 && <Waiting model={model} show={waitingShown} height={wait.height} chips={wait.chips} hidden={wait.hidden} />}
+          <Calendar model={model} />
+          {waitH > 0 && <Waiting model={model} show={waitingShown} height={waitH} />}
         </div>
       </div>
       <Footer model={model} live={live} />
@@ -113,15 +116,17 @@ function Kpis({ model }: { model: MuralModel }) {
 
 function ActiveList({ model }: { model: MuralModel }) {
   const rows = model.active.rows;
-  const shown = rows.slice(0, ACTIVE_ROWS);
-  const more = rows.length - shown.length;
+  const pager = usePages(rows, ACTIVE_ROWS);
   return (
     <section aria-label="Instalaciones activas" style={{ ...card, width: LIST_W, flexShrink: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <div style={{ height: 60, flexShrink: 0, padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #EEF0F3" }}>
         <span style={{ fontSize: 28, fontWeight: 800 }}>Instalaciones activas</span>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 22, fontWeight: 700, color: "#157F3D", background: "#E7F7EE", borderRadius: 999, padding: "4px 14px" }}>En obra · {model.active.nObra}</span>
           <span style={{ fontSize: 22, fontWeight: 700, color: "#3B4FC4", background: "#EEF2FF", borderRadius: 999, padding: "4px 14px" }}>Programados · {model.active.nProg}</span>
+          <span style={{ marginLeft: 6 }}>
+            <PageNumber index={pager.index} count={pager.count} />
+          </span>
         </div>
       </div>
       <div style={{ height: 40, flexShrink: 0, padding: "0 24px", display: "grid", gridTemplateColumns: COLS, columnGap: 12, alignItems: "center", background: "#F9FAFB", borderBottom: "1px solid #EEF0F3", fontSize: 22, fontWeight: 700, color: "#667085" }}>
@@ -131,14 +136,10 @@ function ActiveList({ model }: { model: MuralModel }) {
         <span>Fechas</span>
         <span>Avance</span>
       </div>
-      {shown.map((r) => (
-        <ActiveItem key={r.id} r={r} />
-      ))}
-      {rows.length === 0 && (
+      {rows.length === 0 ? (
         <p style={{ margin: 0, padding: "40px 24px", fontSize: 26, fontWeight: 600, color: "#667085" }}>No hay instalaciones en obra ni programadas por ahora.</p>
-      )}
-      {more > 0 && (
-        <div style={{ padding: "10px 24px", fontSize: 22, fontWeight: 700, color: "#667085" }}>y {more} {more === 1 ? "instalación más" : "instalaciones más"}</div>
+      ) : (
+        <Paged pager={pager}>{(page) => page.map((r) => <ActiveItem key={r.id} r={r} />)}</Paged>
       )}
     </section>
   );
@@ -197,17 +198,75 @@ const TEAM_COL = 56;
 /** Con 22 px solo cabe una letra por día: L M X J V S. */
 const WEEKDAY: Record<string, string> = { "MIÉ": "X" };
 
-function Calendar({ model, bottomH }: { model: MuralModel; bottomH: number }) {
+/** Un trozo del calendario: un equipo, o parte de sus barras si no caben todas en la página. */
+export type CalSection = { team: CalTeam; bars: CalBar[]; first: boolean };
+/** Una página del calendario: sus equipos, con la altura de fila que la llena. */
+export type CalPage = { sections: CalSection[]; rowH: number };
+
+/**
+ * Reparte los equipos en páginas que caben en `area` (MUR-04). Cada página tiene al menos 30 px por barra; si no caben
+ * todas, pasa de página por equipos, y un equipo con muchas barras se parte (su nombre se repite). Ninguna barra se oculta.
+ * Función pura: la usa el calendario y se prueba aparte.
+ */
+export function planCalendar(teams: readonly CalTeam[], area: number): CalPage[] {
+  const pages: CalSection[][] = [];
+  let cur: CalSection[] = [];
+  let used = 0;
+  const flush = () => {
+    if (cur.length) pages.push(cur);
+    cur = [];
+    used = 0;
+  };
+  for (const team of teams) {
+    const total = team.bars.length;
+    let i = 0;
+    for (;;) {
+      const n = Math.floor((area - used - TEAM_PAD) / CAL_ROW_MIN);
+      if (n < 1 && cur.length) {
+        flush();
+        continue;
+      }
+      const take = total ? Math.min(Math.max(1, n), total - i) : 0;
+      cur.push({ team, bars: team.bars.slice(i, i + take), first: i === 0 });
+      used += TEAM_PAD + Math.max(1, take) * CAL_ROW_MIN;
+      i += take;
+      if (i >= total) break;
+    }
+  }
+  flush();
+  return pages.map((sections) => {
+    const rows = sections.reduce((s, x) => s + Math.max(1, x.bars.length), 0);
+    const pads = sections.length * TEAM_PAD;
+    return { sections, rowH: Math.max(CAL_ROW_MIN, Math.min(CAL_ROW_MAX, Math.floor((area - pads) / rows))) };
+  });
+}
+
+function Calendar({ model }: { model: MuralModel }) {
   const cal = model.calendar;
   const { cols } = cal;
-  const rows = cal.teams.reduce((n, t) => n + Math.max(1, t.bars.length), 0);
-  const avail = CONTENT_H - (bottomH > 0 ? bottomH + GAP : 0) - CAL_CHROME - cal.teams.length * TEAM_PAD;
-  const rowH = Math.max(CAL_ROW_MIN, Math.min(CAL_ROW_MAX, Math.floor(avail / Math.max(rows, 1))));
+  const body = useRef<HTMLDivElement>(null);
+  // El alto del hueco lo fija el diseño, no el contenido: se mide para repartir las páginas en lo que de verdad hay.
+  const [area, setArea] = useState(0);
+  useLayoutEffect(() => {
+    const el = body.current;
+    if (!el) return;
+    const measure = () => setArea(el.clientHeight);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const pages = useMemo(() => planCalendar(cal.teams, area || CONTENT_H), [cal.teams, area]);
+  const pager = usePages(pages, 1);
+  const shown = pager.page[0];
   return (
     <section aria-label="Calendario por equipo" style={{ ...card, flex: 1, minHeight: 0, padding: "16px 20px", display: "flex", flexDirection: "column", gap: 6, overflow: "hidden" }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, lineHeight: 1.2 }}>
         <span style={{ fontSize: 28, fontWeight: 800, whiteSpace: "nowrap" }}>Calendario por equipo</span>
-        <span style={{ fontSize: 22, color: "#667085", fontWeight: 500, ...ellipsis }}>{cal.rangeLabel}</span>
+        <span style={{ display: "flex", alignItems: "baseline", gap: 12, minWidth: 0 }}>
+          <span style={{ fontSize: 22, color: "#667085", fontWeight: 500, ...ellipsis }}>{cal.rangeLabel}</span>
+          <PageNumber index={pager.index} count={pager.count} />
+        </span>
       </div>
       <Legend />
 
@@ -223,16 +282,20 @@ function Calendar({ model, bottomH }: { model: MuralModel; bottomH: number }) {
         </div>
       </div>
 
-      <div style={{ position: "relative", flex: 1, minHeight: 0, overflow: "hidden" }}>
+      <div ref={body} style={{ position: "relative", flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <div style={{ position: "absolute", top: 0, bottom: 0, left: TEAM_COL, right: 0, display: "grid", gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
           {cal.days.map((d, i) => (
             <div key={d.iso} style={{ borderLeft: d.weekStart ? "2px dashed #D0D5DD" : i === 0 ? 0 : "1px solid #F0F1F4", background: d.today ? "rgba(194,65,12,0.07)" : d.saturday ? "#FAFAFB" : "transparent" }} />
           ))}
         </div>
         <TodayLine col={cal.todayCol} atEnd={cal.todayAtEnd} cols={cols} left={TEAM_COL} />
-        {cal.teams.map((t) => (
-          <TeamRows key={t.id} team={t} cols={cols} rowH={rowH} />
-        ))}
+        <Paged pager={pager} style={{ position: "relative" }}>
+          {() =>
+            shown
+              ? shown.sections.map((s, i) => <TeamRows key={`${s.team.id}-${i}`} section={s} cols={cols} rowH={shown.rowH} />)
+              : null
+          }
+        </Paged>
       </div>
     </section>
   );
@@ -251,15 +314,16 @@ function Legend() {
   );
 }
 
-function TeamRows({ team, cols, rowH }: { team: CalTeam; cols: number; rowH: number }) {
+function TeamRows({ section, cols, rowH }: { section: CalSection; cols: number; rowH: number }) {
+  const { team, bars } = section;
   return (
-    <div style={{ position: "relative", display: "grid", gridTemplateColumns: `${TEAM_COL}px minmax(0, 1fr)`, padding: "6px 0", borderBottom: "1px solid #EEF0F3" }}>
+    <div style={{ position: "relative", display: "grid", gridTemplateColumns: `${TEAM_COL}px minmax(0, 1fr)`, padding: "6px 0", borderBottom: "1px solid #EEF0F3", boxSizing: "border-box" }}>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", paddingTop: 2 }}>
         <span style={{ fontSize: 22, fontWeight: 800, lineHeight: 1.1, color: "#FFFFFF", background: "#1B1F27", borderRadius: 6, padding: "2px 8px" }}>{team.code}</span>
       </div>
       <div style={{ display: "flex", flexDirection: "column" }}>
-        {team.bars.length === 0 && <div style={{ height: rowH }} />}
-        {team.bars.map((b) => (
+        {bars.length === 0 && <div style={{ height: rowH }} />}
+        {bars.map((b) => (
           <div key={b.id} style={{ height: rowH, position: "relative" }}>
             <Bar b={b} cols={cols} h={rowH - 6} />
           </div>
@@ -302,76 +366,156 @@ const WAIT_STYLE = {
   ready: { bg: "#F9FAFB", border: "#EEF0F3", fg: "#1B1F27", sub: "#157F3D" },
 } as const;
 
-function Waiting({ model, show, height, chips, hidden }: { model: MuralModel; show: boolean; height: number; chips: WaitingItem[]; hidden: number }) {
+/** Texto de las fichas de "Por programar" (dos bloques: nombre y motivo). */
+const CHIP_TEXT: CSSProperties = { fontSize: 22, lineHeight: 1.15, fontWeight: 600 };
+/**
+ * Medida de una ficha: el motivo se parte si no cabe (nunca se corta). Lo que la ficha no usa para el texto:
+ * borde 2 + relleno 24 + punto 20 + hueco 12 a la izquierda y 13 a la derecha; la bandera del nombre, 30.
+ */
+const chipFit = (maxH: number): FitOptions => ({ maxH, gap: CHIP_GAP, stack: true, minH: CHIP_H, pad: 3, padL: 45, padR: 13, headInset: 30, text: CHIP_TEXT });
+
+const METER_TEXT: CSSProperties = { fontSize: 22, lineHeight: 1.2, fontWeight: 600 };
+/** Un medidor cabe en una línea de la barra; si no, se reparte en trozos. */
+const METER_FIT: FitOptions = { maxH: METER_H, text: METER_TEXT, bodyWeight: () => 600 };
+
+const meterRest = (m: MeterItem) => (m.place || m.endedOn ? `· ${[m.place, m.endedOn ? `terminada el ${m.endedOn}` : ""].filter(Boolean).join(" · ")}` : "");
+
+/** "Por programar": tarjetas por páginas (con tope de 30 en el modelo) y el medidor en una marquesina. */
+function Waiting({ model, show, height }: { model: MuralModel; show: boolean; height: number }) {
   const w = model.waiting;
-  const meter = model.meter.items;
+  const meterShown = model.meter.items.length > 0;
+  const chips = useMemo((): Rich<WaitingItem>[] => w.items.map((b) => ({ head: b.name, body: b.sub, data: b })), [w.items]);
+  const meterItems = useMemo((): Rich<MeterItem>[] => model.meter.items.map((m) => ({ head: m.name, body: meterRest(m), data: m })), [model.meter.items]);
+  const { pages, probe } = useFit(chips, chipFit(listArea(meterShown)));
+  const pager = usePages(pages ?? NO_PAGES, 1);
   return (
     <section aria-label="Por programar" style={{ ...card, height, flexShrink: 0, padding: "14px 20px", display: "flex", flexDirection: "column", gap: 8, overflow: "hidden" }}>
       {show && (
-        <>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, height: 34, flexShrink: 0 }}>
-            <span style={{ fontSize: 28, fontWeight: 800 }}>Por programar</span>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, height: 34, flexShrink: 0 }}>
+          <span style={{ fontSize: 28, fontWeight: 800 }}>Por programar</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
             <span style={{ fontSize: 22, fontWeight: 700, color: "#475467", background: "#F2F4F7", borderRadius: 999, padding: "2px 12px", whiteSpace: "nowrap" }}>
               {w.text}
-              {hidden > 0 ? ` · +${hidden}` : ""}
+              {w.more > 0 ? ` · +${w.more}` : ""}
             </span>
-          </div>
-          {chips.length ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: CHIP_GAP, flex: 1 }}>
-              {chips.map((b) => (
-                <WaitingChip key={b.id} b={b} />
-              ))}
-            </div>
+            <PageNumber index={pager.index} count={pager.count} />
+          </span>
+        </div>
+      )}
+      {/* La medida siempre está montada: si la sección se muestra después, ya tiene sus páginas. */}
+      <div style={show ? { position: "relative", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" } : { position: "relative", height: 0, overflow: "hidden", marginBottom: -GAP_IN_SECTION }}>
+        {probe}
+        {show &&
+          (w.items.length ? (
+            <Paged pager={pager}>
+              {(page) => (
+                <div style={{ display: "flex", flexDirection: "column", gap: CHIP_GAP }}>
+                  {(page[0] ?? []).map((p, i) => (
+                    <WaitingChip key={`${p.data.id}-${i}`} p={p} />
+                  ))}
+                </div>
+              )}
+            </Paged>
           ) : (
             <p style={{ margin: 0, flex: 1, fontSize: 22, fontWeight: 600, color: "#667085" }}>No hay proyectos esperando fecha.</p>
-          )}
-        </>
-      )}
-      {meter.length > 0 && (
-        <div style={{ display: "flex", alignItems: "center", gap: 10, height: METER_H, flexShrink: 0, padding: "0 12px", borderRadius: 10, background: "#E3F1F5", color: "#155E75" }}>
+          ))}
+      </div>
+      {meterItems.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 12, height: METER_H, flexShrink: 0, padding: "0 12px", borderRadius: 10, background: "#E3F1F5", color: "#155E75" }}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ flexShrink: 0 }}>
             <circle cx="12" cy="13" r="8" />
             <path d="M12 13l3-3M9 3h6" />
           </svg>
-          <span style={{ fontSize: 22, fontWeight: 800, whiteSpace: "nowrap" }}>Esperando medidor</span>
-          <span style={{ flex: 1, minWidth: 0, fontSize: 22, fontWeight: 600, ...ellipsis }}>{meter.map((m) => m.text).join("   |   ")}</span>
+          <span style={{ fontSize: 22, fontWeight: 800, whiteSpace: "nowrap", flexShrink: 0 }}>Esperando medidor</span>
+          <Marquee
+            gap={56}
+            items={meterItems}
+            render={(p) => <MeterText p={p} />}
+            separator={<span aria-hidden style={{ width: 2, height: 22, flexShrink: 0, borderRadius: 1, background: "#7FB6C6" }} />}
+            box={METER_FIT}
+          />
         </div>
       )}
     </section>
   );
 }
 
-function WaitingChip({ b }: { b: WaitingItem }) {
+/** Separación vertical de la sección "Por programar" entre su lista y el medidor. */
+const GAP_IN_SECTION = 8;
+
+/** Un medidor pendiente: nombre en negrita, luego lugar y fecha (MUR-06). */
+function MeterText({ p }: { p: Piece<MeterItem> }) {
+  return (
+    <span style={{ fontSize: 22, fontWeight: 600, lineHeight: 1.2, overflowWrap: "anywhere" }}>
+      <span style={{ fontWeight: 800 }}>{p.head ? `${p.head} ` : ""}</span>
+      {p.body}
+    </span>
+  );
+}
+
+/** Una ficha (o un trozo de ficha) de "Por programar": el nombre arriba y el motivo completo debajo (MUR-05). */
+function WaitingChip({ p }: { p: Piece<WaitingItem> }) {
+  const b = p.data;
   const s = WAIT_STYLE[b.tone];
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, height: CHIP_H, flexShrink: 0, padding: "0 12px", background: s.bg, border: `1px solid ${s.border}`, borderRadius: 10, boxSizing: "border-box" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 12, minHeight: CHIP_H, flexShrink: 0, padding: "0 12px", background: s.bg, border: `1px solid ${s.border}`, borderRadius: 10, boxSizing: "border-box" }}>
       {b.tone === "pause" ? <span aria-hidden style={{ width: 10, height: 10, flexShrink: 0, borderRadius: "50%", background: "#D63B6A" }} /> : <PatternDot color={b.company.color} pattern={b.company.pattern} size={20} />}
-      <span style={{ flex: "0 1 auto", minWidth: 0, maxWidth: "50%", fontSize: 22, fontWeight: 700, color: s.fg, ...ellipsis }}>{b.name}</span>
-      {b.priority && <Flag size={22} />}
-      <span style={{ flex: "1 1 0", minWidth: 0, textAlign: "right", fontSize: 22, fontWeight: 700, color: s.sub, ...ellipsis }}>{b.sub}</span>
+      <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1, lineHeight: 1.15 }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+          <span style={{ fontSize: 22, fontWeight: 800, color: s.fg, minWidth: 0, overflowWrap: "anywhere" }}>{p.head}</span>
+          {p.first && b.priority && <Flag size={22} />}
+        </span>
+        {p.body && <span style={{ fontSize: 22, fontWeight: 600, color: s.sub, overflowWrap: "anywhere" }}>{p.body}</span>}
+      </div>
     </div>
   );
 }
 
-/** Pie: cada aviso lleva su parte del ancho y, si no cabe, se recorta con puntos suspensivos en hasta 2 líneas (AVI-03). */
+/** Texto del aviso en el pie: punto, nombre del proyecto en negrita y texto completo. */
+const NOTICE_TEXT: CSSProperties = { fontSize: 22, lineHeight: 1.25, fontWeight: 600 };
+const noticeWeight = (hasHead: boolean) => (hasHead ? 600 : 700);
+/** Pie: la lista de avisos. Un aviso sale completo: en una línea de marquesina, o en trozos de hasta dos líneas. */
+const FOOTER_FIT: FitOptions = { maxH: 72, padL: 22, bodyWeight: noticeWeight, text: NOTICE_TEXT };
+
+/** Pie: todos los avisos seguidos en una sola línea que rota (AVI-03). Cada uno lleva su punto; el nombre del proyecto, en negrita. */
 function Footer({ model, live }: { model: MuralModel; live: ScreenProps["live"] }) {
   const lines = model.notices;
+  const rich = useMemo((): Rich<NoticeLine>[] => lines.map((n) => ({ head: n.project, body: n.text, data: n })), [lines]);
   return (
     <footer style={{ height: 72, flexShrink: 0, display: "flex", alignItems: "center", gap: 18, background: "#FFFFFF", border: "1px solid #E6E8EC", borderRadius: 16, padding: "0 16px 0 12px", overflow: "hidden", boxSizing: "border-box" }}>
-      <span style={{ flexShrink: 0, fontSize: 22, fontWeight: 800, color: "#FFFFFF", background: TODAY_COLOR, borderRadius: 10, padding: "6px 16px" }}>Avisos</span>
-      <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 28, overflow: "hidden" }}>
-        {lines.length === 0 && <span style={{ fontSize: 22, fontWeight: 600, color: "#667085" }}>Sin avisos por ahora</span>}
-        {lines.map((n, i) => (
-          <span key={i} style={{ flex: "1 1 0", minWidth: 120, display: "flex", alignItems: "center", gap: 10, fontSize: 22, fontWeight: 600, lineHeight: 1.15, color: "#1B1F27" }}>
-            <span style={{ width: 8, height: 8, flexShrink: 0, borderRadius: "50%", background: ACCENT }} />
-            <span style={{ minWidth: 0, overflow: "hidden", display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2, overflowWrap: "anywhere" }}>{n.project ? `${n.project}: ${n.text}` : n.text}</span>
-          </span>
-        ))}
+      <span style={{ flexShrink: 0, fontSize: 22, fontWeight: 800, color: "#FFFFFF", background: TODAY_COLOR, borderRadius: 10, padding: "6px 16px" }}>
+        Avisos
+        {model.noticesMore > 0 ? ` +${model.noticesMore}` : ""}
+      </span>
+      <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", overflow: "hidden" }}>
+        {lines.length === 0 ? (
+          <span style={{ fontSize: 22, fontWeight: 600, color: "#667085" }}>Sin avisos por ahora</span>
+        ) : (
+          <Marquee
+            gap={64}
+            items={rich}
+            render={(p) => <NoticeText p={p} />}
+            separator={<span aria-hidden style={{ width: 3, height: 28, flexShrink: 0, borderRadius: 2, background: "#D0D5DD" }} />}
+            box={FOOTER_FIT}
+          />
+        )}
       </div>
       <span style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 8, fontSize: 22, fontWeight: 600, color: live.offline ? "#B54708" : "#667085", whiteSpace: "nowrap" }}>
         <span style={{ width: 8, height: 8, borderRadius: "50%", background: live.offline ? "#F59E0B" : "#16A34A" }} />
         {updatedText(live)}
       </span>
     </footer>
+  );
+}
+
+function NoticeText({ p }: { p: Piece<NoticeLine> }) {
+  return (
+    <span style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 22, lineHeight: 1.25, color: "#1B1F27" }}>
+      {p.first ? <span style={{ width: 10, height: 10, flexShrink: 0, borderRadius: "50%", background: ACCENT }} /> : <span style={{ width: 10, flexShrink: 0 }} />}
+      <span style={{ minWidth: 0, overflowWrap: "anywhere", fontWeight: noticeWeight(!!p.head) }}>
+        {p.head && <span style={{ fontWeight: 800 }}>{`${p.head} `}</span>}
+        {p.body}
+      </span>
+    </span>
   );
 }
