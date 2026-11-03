@@ -1,11 +1,24 @@
 version: 2
 updates:
+  # Paquetes que deben subir juntos van agrupados (react + react-dom falla si llegan por separado).
   - package-ecosystem: npm
     directory: /
     schedule: {interval: weekly}
+    groups:
+      react:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
+      vite-tailwind:
+        patterns: ["vite", "@vitejs/*", "vite-plugin-pwa", "workbox-*", "tailwindcss", "@tailwindcss/*"]
+      playwright:
+        patterns: ["@playwright/*", "@axe-core/*"]
+      menores:
+        update-types: ["patch"]
   - package-ecosystem: github-actions
     directory: /
     schedule: {interval: weekly}
+    groups:
+      acciones:
+        patterns: ["*"]
   - package-ecosystem: docker
     directory: /
     schedule: {interval: weekly}

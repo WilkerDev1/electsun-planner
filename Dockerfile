@@ -1,4 +1,4 @@
-FROM node:24-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS build
+FROM node:26-bookworm-slim@sha256:bc0a2afd3b74ce12222fc8bab99271e66257f021078f5f4a5d687a77d280c1d9 AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -10,7 +10,7 @@ COPY server ./server
 COPY migrations ./migrations
 RUN npx vite build && npx esbuild server/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist-server/index.js && npm prune --omit=dev
 
-FROM node:24-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS runtime
+FROM node:26-bookworm-slim@sha256:bc0a2afd3b74ce12222fc8bab99271e66257f021078f5f4a5d687a77d280c1d9 AS runtime
 ENV NODE_ENV=production PORT=8080
 WORKDIR /app
 COPY --from=build /app/node_modules ./node_modules
