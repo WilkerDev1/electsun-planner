@@ -267,6 +267,15 @@ Mientras D termina el SSE, E trabaja contra el contrato con datos del seed. Las 
 5. Detener Monitor con `docker compose down`, sin `-v`.
 6. Importar el Excel real solo en el servidor.
 
+Lista de comprobación previa (infraestructura, `fix/infra-pruebas`):
+
+- [ ] `.env` de producción con `BEHIND_CLOUDFLARE=true` (o sin definir: es el valor por defecto de `compose.yaml`). Con `true`, Caddy responde 403 a toda petición sin `Cf-Connecting-Ip` y pasa esa IP como `X-Forwarded-For`, de modo que no se pueden saltar los límites de intentos falsificando la cabecera. Comprobar con `curl -i http://127.0.0.1:8091/` (debe dar 403) y con `curl -H 'Cf-Connecting-Ip: 1.2.3.4' ...` (200).
+- [ ] La demo local (`ops/local.sh`) usa `compose.local.yaml`, que fija `BEHIND_CLOUDFLARE=false`: Caddy toma la IP real de la conexión e ignora la cabecera. No usar `compose.local.yaml` en producción.
+- [ ] `BOOTSTRAP_EMAIL` y `BOOTSTRAP_PASSWORD` solo para el primer arranque (crean el administrador únicamente si no hay usuarios). Tras entrar por primera vez, **retirar `BOOTSTRAP_PASSWORD` del `.env`** y recrear el contenedor (`docker compose up -d`).
+- [ ] Imágenes fijadas por digest (`postgres:16`, `caddy:2`, `node:24-bookworm-slim`) y acciones de GitHub fijadas por SHA; Dependabot (semanal: npm, actions, docker) propone las actualizaciones, que se revisan antes de aceptar.
+- [ ] La CI incluye `npm audit --omit=dev --audit-level=high`; debe estar en verde.
+- [ ] `npx playwright test` en verde (accesibilidad, PWA, mural sin conexión, panel de edición, cuentas).
+
 ## Protocolo de revisión
 
 Nota de ejecución: `agy -p` tardaba ~4,5 min en arrancar y agotó la cuota de Sonnet, así que las revisiones de F0–F2 se hicieron con un subagente Claude Haiku 5.5 (esfuerzo medio) en solo lectura: `docs/revisiones/F0-F2.md` y su confirmación. El protocolo original con `agy` queda abajo para fases futuras.

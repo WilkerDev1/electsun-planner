@@ -1,28 +1,10 @@
-import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import ExcelJS from "exceljs";
-import { ADMIN, OFFICE } from "./global-setup";
+import { OFFICE } from "./global-setup";
 import { BASE } from "../playwright.config";
+import { adminApi, createLink, login } from "./helpers";
 
 // Flujo completo de la demo (REQUISITOS F3): oficina → TV por SSE → móvil; revocación; importación.
-
-async function login(page: Page, who: { email: string; password: string }) {
-  await page.goto("/login");
-  await page.getByLabel("Correo").fill(who.email);
-  await page.getByLabel("Contraseña", { exact: true }).fill(who.password);
-  await page.getByRole("button", { name: "Entrar" }).click();
-  await expect(page).toHaveURL(/\/proyectos/);
-}
-
-async function adminApi(request: APIRequestContext) {
-  const r = await request.post("/api/auth/login", { data: ADMIN, headers: { Origin: BASE } });
-  expect(r.ok()).toBeTruthy();
-}
-
-async function createLink(request: APIRequestContext, body: object) {
-  const r = await request.post("/api/access-links", { data: body, headers: { Origin: BASE } });
-  expect(r.ok(), await r.text()).toBeTruthy();
-  return (await r.json()) as { link: { id: string }; path: string };
-}
 
 test("la oficina renombra un proyecto y la TV y el móvil lo muestran sin recargar", async ({ page, browser, request }) => {
   await adminApi(request);
@@ -33,7 +15,7 @@ test("la oficina renombra un proyecto y la TV y el móvil lo muestran sin recarg
 
   const tvPage = await (await browser.newContext({ viewport: { width: 1920, height: 1080 } })).newPage();
   await tvPage.goto(tv.path);
-  await expect(tvPage).toHaveURL(new RegExp(`/tv/${tv.link.id}$`));
+  await expect(tvPage).toHaveURL(new RegExp(`/tv/${tv.link.id}(#.*)?$`));
   await expect(tvPage.getByText("Sr. Herrera").first()).toBeVisible();
 
   const phone = await (await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })).newPage();
@@ -43,9 +25,9 @@ test("la oficina renombra un proyecto y la TV y el móvil lo muestran sin recarg
   await expect(phone.getByText("Sr. Herrera").first()).toBeVisible();
 
   await login(page, OFFICE);
-  // La celda del nombre se identifica por su etiqueta "Proyecto N", que no cambia al escribir.
-  const label = await page.locator('input[value="Sr. Herrera"]').first().getAttribute("aria-label");
-  const cell = page.getByLabel(label!, { exact: true });
+  // La celda del nombre se localiza por su valor y se conserva el elemento: su etiqueta accesible
+  // ("Proyecto N" o con el nombre real) y su valor cambian al escribir.
+  const cell = (await page.locator('input[value="Sr. Herrera"]').first().elementHandle())!;
   await cell.fill("Sr. Herrera (techo norte)");
   await cell.press("Enter");
 
