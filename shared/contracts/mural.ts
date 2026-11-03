@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isoDate } from "./common.js";
+import type { MuralModel } from "../mural-model.js";
 
 export const MuralSettings = z.object({
   design: z.enum(["principal", "timeline"]),
@@ -18,4 +19,17 @@ export const NoticeBody = z
   .object({ text: z.string().trim().min(1).max(140), starts_on: isoDate, expires_on: isoDate, sort: z.number().int().min(0).max(99).default(0) })
   .refine((n) => n.expires_on >= n.starts_on, "La caducidad es anterior al inicio.");
 
-// El modelo de la vista del mural (CAL-08, GET /api/view/mural) lo define la fase F2·D en este archivo.
+/**
+ * Respuesta de GET /api/view/mural (CAL-08): el modelo ya calculado con los ajustes guardados.
+ * Una cuenta puede añadir los ajustes como parámetros (`?weeks=3&show_kwp=1`…) para la vista previa de Configuración.
+ */
+export type MuralView = {
+  today: string;
+  generatedAt: string;
+  settings: MuralSettings;
+  model: MuralModel;
+  companies: { id: string; name: string; code: string; color: string }[];
+  teams: { id: string; code: string; name: string; color: string | null }[];
+};
+
+export type { MuralModel } from "../mural-model.js";
