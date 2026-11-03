@@ -22,6 +22,8 @@ export async function api<T>(path: string, opts: Options = {}): Promise<T> {
   if (r.status === 204) return undefined as T;
   const type = r.headers.get("Content-Type") ?? "";
   const data = type.includes("application/json") ? await r.json() : null;
+  if (r.status === 401 && !path.startsWith("/auth/") && !path.startsWith("/view/") && !path.startsWith("/access/"))
+    window.dispatchEvent(new Event("planner:unauthorized"));
   if (!r.ok) throw new ApiError(r.status, data?.message ?? "No se pudo completar la solicitud.");
   return data as T;
 }

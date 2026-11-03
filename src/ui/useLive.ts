@@ -26,10 +26,16 @@ export function useLive<T>(path: string, cacheKey: string, eventsQuery = "") {
     return { data: null, error: null, fetchedAt: null, offline: false, revoked: false };
   });
   const inflight = useRef(false);
+  const dirty = useRef(false);
 
-  const load = useCallback(async () => {
-    if (inflight.current) return;
+  const load = useCallback(async (): Promise<void> => {
+    // Si llega un cambio con una petición en curso, se repite al terminar para no quedarse con datos viejos.
+    if (inflight.current) {
+      dirty.current = true;
+      return;
+    }
     inflight.current = true;
+    dirty.current = false;
     try {
       const data = await api<T>(path);
       const at = new Date();
@@ -50,6 +56,7 @@ export function useLive<T>(path: string, cacheKey: string, eventsQuery = "") {
       setState((s) => ({ ...s, error: err, offline: err.status === 0, revoked: err.status === 401 || err.status === 403 }));
     } finally {
       inflight.current = false;
+      if (dirty.current) void load();
     }
   }, [path, cacheKey]);
 

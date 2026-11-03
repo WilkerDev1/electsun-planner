@@ -23,6 +23,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
   useEffect(() => {
     void refresh();
+    // Sesión caducada (401 en cualquier llamada): se recarga /auth/me y RequireAuth lleva al login.
+    const onUnauthorized = () => void refresh();
+    window.addEventListener("planner:unauthorized", onUnauthorized);
+    // "Hoy" se renueva a medianoche aunque la pestaña siga abierta.
+    let timer: ReturnType<typeof setTimeout>;
+    const schedule = () => {
+      const now = new Date();
+      const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 5);
+      timer = setTimeout(() => {
+        void refresh();
+        schedule();
+      }, next.getTime() - now.getTime());
+    };
+    schedule();
+    return () => {
+      window.removeEventListener("planner:unauthorized", onUnauthorized);
+      clearTimeout(timer);
+    };
   }, [refresh]);
   return <AuthContext.Provider value={{ ...me, loading, refresh, logout }}>{children}</AuthContext.Provider>;
 }

@@ -14,7 +14,7 @@ export default defineConfig({
   use: { baseURL: BASE, locale: "es-DO", timezoneId: "America/Santo_Domingo", trace: "retain-on-failure" },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: "npx vite build && npx tsx server/index.ts",
+    command: "NODE_ENV=production npx vite build && npx tsx server/index.ts",
     url: `${BASE}/readyz`,
     timeout: 120000,
     reuseExistingServer: false,

@@ -36,8 +36,12 @@ export function useProjects(today: string, notify: (message: string, tone?: "ok"
   const archivedRef = useRef(showArchived);
   archivedRef.current = showArchived;
 
+  const loadSeq = useRef(0);
   const loadProjects = useCallback(async () => {
+    const seq = ++loadSeq.current;
     const list = await api<Project[]>(`/projects${archivedRef.current ? "?archived=1" : ""}`);
+    // Solo vale la última carga, y nunca mientras haya un guardado optimista en vuelo.
+    if (seq !== loadSeq.current || inflight.current > 0) return;
     confirmed.current = new Map(list.map((p) => [p.id, p]));
     setRows(list);
     setServerWarnings({});

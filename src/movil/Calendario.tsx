@@ -42,7 +42,7 @@ function AgendaRow({ day, team }: { day: AgendaDay; team: string }) {
         </span>
         <span
           className="mt-1 flex size-9 items-center justify-center rounded-full text-[18px] font-extrabold"
-          style={{ background: day.is_today ? "#EA6A1F" : "transparent", color: day.is_today ? "#FFFFFF" : dim ? "#6B7280" : "#1B1F27" }}
+          style={{ background: day.is_today ? "#C2410C" : "transparent", color: day.is_today ? "#FFFFFF" : dim ? "#6B7280" : "#1B1F27" }}
           aria-label={`${day.dow} ${day.day}${day.is_today ? ", hoy" : ""}`}
         >
           {day.day}
@@ -175,7 +175,7 @@ function Timeline({ view, team }: { view: MovilView; team: string }) {
                 </span>
                 <span
                   className="flex size-[30px] items-center justify-center rounded-full text-[15px] font-extrabold"
-                  style={{ background: d.is_today ? "#EA6A1F" : "transparent", color: d.is_today ? "#FFFFFF" : d.is_past ? "#6B7280" : "#1B1F27" }}
+                  style={{ background: d.is_today ? "#C2410C" : "transparent", color: d.is_today ? "#FFFFFF" : d.is_past ? "#6B7280" : "#1B1F27" }}
                   aria-label={`${d.dow} ${d.day}${d.is_today ? ", hoy" : ""}`}
                 >
                   {d.day}
