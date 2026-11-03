@@ -206,3 +206,4 @@ Pendiente, fuera de los hallazgos del informe:
 - "Instalaciones activas" (principal): los nombres y los lugares de las filas siguen con elipsis, p. ej. "Lucía Esther Gómez…". El encargo pedía no cortar con puntos suspensivos lo que no cabe. Solucionarlo exige rediseñar la fila (altura fija de 80 px), así que queda como tarea aparte.
 - La vista previa del administrador (`src/admin/mural/Preview.tsx`) usa los mismos componentes; no se revisó en pantalla.
 - Revisión visual con un solo navegador (Chromium) y datos de demostración; no se probó en una TV real.
+- Corrección de la revisión de confirmación: MUR-11 con 120 s y comprobación de la cabecera «Sin conexión» en vez de «Sr. Herrera»; axe espera al fundido de `.mural-page-in` antes de escanear `/mural`; `Fit.tsx` parte una palabra por caracteres si no cabe y vuelve a medir con `loadingdone` de las fuentes. Typecheck, npm test (208 de 208), vite build y Playwright (17 de 17) pasan.

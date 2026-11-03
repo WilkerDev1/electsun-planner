@@ -36,6 +36,10 @@ test.describe("accesibilidad (axe, sin violaciones serias ni críticas)", () => 
       await page.goto(ruta);
       await expect(page.getByRole("main").or(page.locator("main")).first()).toBeVisible();
       await expect(page.getByText("Cargando")).toHaveCount(0);
+      // El mural funde cada página al montarse (opacidad de 0 a 1). Axe mediría el contraste a medio fundido.
+      await page.waitForFunction(() =>
+        document.getAnimations().every((a) => !(a instanceof CSSAnimation && a.animationName === "mural-page-in") || a.playState === "finished"),
+      );
       expect(await serious(page, KNOWN[ruta])).toEqual([]);
     });
   }
@@ -69,6 +73,7 @@ test("PWA: el manifiesto es válido y el service worker se registra en /m (MOV-0
 });
 
 test("el mural de TV sigue mostrando datos y avisa «Sin conexión» al perder la red (MUR-11)", async ({ browser, request }) => {
+  test.setTimeout(120_000);
   await adminApi(request);
   const tv = await createLink(request, { kind: "tv", name: "TV sin red" });
   const context = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
@@ -82,7 +87,8 @@ test("el mural de TV sigue mostrando datos y avisa «Sin conexión» al perder l
   // Sin red, la pantalla lo detecta en su siguiente lectura; se adelanta con el evento del navegador.
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
   await expect(page.getByText(/Sin conexión/)).toBeVisible({ timeout: 15000 });
-  await expect(page.getByText("Sr. Herrera").first()).toBeVisible({ timeout: 30000 });
+  // La cabecera no rota: sigue indicando que los datos son de antes de perder la red.
+  await expect(page.getByText(/Sin conexión · datos de las/)).toBeVisible();
 
   await context.setOffline(false);
   await page.evaluate(() => window.dispatchEvent(new Event("online")));

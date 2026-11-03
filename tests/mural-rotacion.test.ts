@@ -128,6 +128,27 @@ test("avisos: un texto que cabe entero en una página nueva no se parte en la ac
   assert.equal(pages.flat().flatMap((p) => words(p.body)).length, 2);
 });
 
+test("avisos: una palabra que no cabe en una página se parte por caracteres, sin perder ninguno", () => {
+  const word = "x".repeat(200);
+  const pages = fitPieces([notice(word, "Proyecto")], lines, 120, 8);
+  assert.ok(pages.length > 1, "no cabe en una página");
+  for (const page of pages) assert.ok(heightOf(page, 8) <= 120, `página de ${heightOf(page, 8)} px`);
+  // Partida por caracteres: los trozos unidos sin espacio son la palabra entera, en orden.
+  assert.equal(pages.flat().map((p) => p.body).join(""), word);
+  assert.ok(pages.flat().every((p) => p.body.length > 0), "ningún trozo vacío");
+});
+
+test("avisos: al partir por caracteres se corta entre palabras cuando hay espacio, y las palabras cortas no se parten", () => {
+  const long = "uno dos tres " + "y".repeat(150) + " cuatro cinco";
+  const pages = fitPieces([notice(long)], lines, 52, 0);
+  const bodies = pages.flat().map((p) => p.body);
+  // La palabra larga se parte; las demás aparecen enteras.
+  assert.ok(bodies[0].startsWith("uno dos"), `primer trozo: ${bodies[0]}`);
+  assert.ok(bodies.join(" ").includes("cuatro cinco"));
+  assert.equal(bodies.join("").replace(/\s/g, ""), long.replace(/\s/g, ""), "ningún carácter se pierde");
+  for (const page of pages) assert.ok(heightOf(page, 0) <= 52);
+});
+
 test("avisos: sin avisos no hay páginas y un aviso vacío ocupa una sola página", () => {
   assert.deepEqual(fitPieces([], lines, 120, 8), []);
   const vacio = fitPieces([notice("", "Solo proyecto")], lines, 120, 8);

@@ -36,9 +36,10 @@ const words = (s: string) => s.split(/\s+/).filter(Boolean);
 
 /**
  * Reparte los elementos en páginas de alto `maxH`, con `gap` entre trozos. Función pura: `measure` da el alto de un trozo.
- * Un elemento que no cabe entero se parte por palabras, en el mayor número de palabras que quepa en la página, salvo que
- * entero quepa en una página nueva: entonces pasa entero a la siguiente (no se parte un texto que cabe de una vez).
- * `measure` debe crecer con el texto (más palabras, no menos alto). Ningún trozo se pierde ni se repite.
+ * Un elemento que no cabe entero se parte en el mayor trozo que quepa en la página (búsqueda binaria sobre posiciones
+ * del texto), entre palabras cuando es posible. Si una sola palabra no cabe en una página, se parte por caracteres.
+ * Salvo que entero quepa en una página nueva: entonces pasa entero a la siguiente (no se parte un texto que cabe de una vez).
+ * `measure` debe crecer con el texto (más texto, no menos alto). Ningún trozo se pierde ni se repite.
  */
 export function fitPieces<T>(
   items: readonly Rich<T>[],
@@ -57,11 +58,12 @@ export function fitPieces<T>(
   };
 
   for (const it of items) {
-    const w = words(it.body);
-    const n = w.length;
+    // Texto con una sola separación entre palabras. Las posiciones son índices en este texto.
+    const s = words(it.body).join(" ");
+    const n = s.length;
     const piece = (from: number, to: number): Piece<T> => ({
       head: it.head,
-      body: w.slice(from, to).join(" "),
+      body: s.slice(from, to).trim(),
       first: from === 0,
       data: it.data,
     });
@@ -71,7 +73,7 @@ export function fitPieces<T>(
       const base = cur.length ? used + gap : 0;
       const room = maxH - base;
       const fits = (to: number) => measure(piece(from, to)) <= room;
-      // Mayor `to` que cabe: búsqueda binaria sobre el número de palabras (la altura crece con el texto).
+      // Mayor `to` que cabe: búsqueda binaria sobre posiciones (la altura crece con el texto).
       let to = from;
       if (fits(n)) to = n;
       else {
@@ -83,11 +85,16 @@ export function fitPieces<T>(
           else hi = mid;
         }
         to = lo;
+        // Si el corte cae dentro de una palabra y hay un espacio antes, se corta entre palabras.
+        if (to < n && s[to] !== " ") {
+          const sp = s.lastIndexOf(" ", to - 1);
+          if (sp > from) to = sp;
+        }
       }
       // Si el resto del elemento cabría entero en una página nueva, no se parte ahora: pasa a la siguiente.
       if (to < n && cur.length && measure(piece(from, n)) <= maxH) to = from;
       if (to === from) {
-        // No cabe nada más en esta página: se pasa a otra. En una página vacía se fuerza al menos una palabra.
+        // No cabe nada más en esta página: se pasa a otra. En una página vacía se fuerza al menos un carácter.
         if (cur.length) {
           flush();
           continue;
@@ -98,6 +105,7 @@ export function fitPieces<T>(
       used = base + measure(p);
       cur.push(p);
       from = to;
+      while (s[from] === " ") from++;
       if (from >= n) break;
     }
   }
@@ -165,10 +173,14 @@ export function useFit<T>(items: readonly Rich<T>[], o: FitOptions): { pages: Pi
     run();
     const ro = new ResizeObserver(run);
     ro.observe(bx);
-    void document.fonts?.ready.then(run);
+    // Las fuentes pueden cargar después del primer render: se vuelve a medir al terminar y en cada carga nueva.
+    const fonts = typeof document !== "undefined" ? document.fonts : undefined;
+    void fonts?.ready?.then(run);
+    fonts?.addEventListener?.("loadingdone", run);
     return () => {
       alive = false;
       ro.disconnect();
+      fonts?.removeEventListener?.("loadingdone", run);
     };
   }, [items, maxH, gap, maxPer, minH, pad, stack, padL, padR, headInset, bodyWeight]);
 
