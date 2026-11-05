@@ -8,15 +8,16 @@ import { NO_PAGES, useFit, type FitOptions, type Piece, type Rich } from "./Fit"
 
 // Diseño principal del mural (design/v4/V4MuralPrincipal.dc.html): tabla de activos + calendario por equipo.
 // Todo el lienzo mide 1920×1080 (MUR-01) y todo el texto mide 22 px o más (MUR-01, NF-04); los números llevan tabular-nums.
-// Reparto vertical del lienzo: 1080 − relleno 56 − cabecera 72 − indicadores 88 − pie 72 − 3 separaciones de 20 = 732 px de contenido.
+// Reparto vertical del lienzo: 1080 − relleno 56 − cabecera 72 − indicadores 64 − pie 72 − 3 separaciones de 20 = 756 px de contenido.
 // Lo que no cabe rota (Rotate.tsx): las listas y el calendario pasan de página, y las líneas horizontales van en marquesina.
 
 const KPI_COLOR: Record<KpiTone, string> = { ok: "#157F3D", indigo: "#3B4FC4", slate: "#475467", brand: "#C2410C" };
 const GAP = 20;
-const CONTENT_H = 732;
-/** Filas de "Instalaciones activas" por página. */
+const CONTENT_H = 756;
+/** Filas de "Instalaciones activas" por página (MUR-03). */
 const ACTIVE_ROWS = 7;
-const ACTIVE_ROW_H = 80;
+/** (756 de contenido − 48 de encabezado) / 7 filas = 101 px: la lista llena el panel sin hueco al pie. */
+const ACTIVE_ROW_H = 101;
 const LIST_W = 1080;
 const CAL_ROW_MAX = 40;
 const CAL_ROW_MIN = 30;
@@ -28,7 +29,7 @@ const CHIP_GAP = 6;
 const METER_H = 42;
 
 const card: CSSProperties = { background: "#FFFFFF", border: "1px solid #E6E8EC", borderRadius: 20, boxSizing: "border-box" };
-const COLS = "minmax(0, 1fr) 170px 80px 150px 220px";
+const COLS = "minmax(0, 1fr) 165px 70px 145px 210px";
 
 /** Alto de la lista de "Por programar": tres fichas, o dos si hay medidor. Fijo: el calendario no cambia de tamaño al rotar. */
 const listArea = (meterShown: boolean) => (meterShown ? 2 * CHIP_H + CHIP_GAP : 3 * CHIP_H + 2 * CHIP_GAP);
@@ -100,13 +101,36 @@ function Header({ model, showClock, today }: { model: MuralModel; showClock: boo
 
 function Kpis({ model }: { model: MuralModel }) {
   return (
-    <div style={{ height: 88, flexShrink: 0, display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 16 }}>
+    <div style={{ height: 64, flexShrink: 0, display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 16 }}>
       {model.kpis.map((k) => (
-        <div key={k.key} style={{ background: "#FFFFFF", border: "1px solid #E6E8EC", borderRadius: 16, padding: "0 20px", display: "flex", alignItems: "center", gap: 16, minWidth: 0 }}>
-          <span style={{ fontSize: 48, fontWeight: 800, lineHeight: 1, color: KPI_COLOR[k.tone] }}>{k.n}</span>
-          <div style={{ display: "flex", flexDirection: "column", minWidth: 0, lineHeight: 1.2 }}>
-            <span style={{ fontSize: 22, fontWeight: 700, ...ellipsis }}>{k.label}</span>
-            <span style={{ fontSize: 22, color: "#667085", ...ellipsis }}>{k.sub}</span>
+        <div key={k.key} style={{ background: "#FFFFFF", border: "1px solid #E6E8EC", borderRadius: 16, padding: "0 20px", display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
+          <span style={{ fontSize: 44, fontWeight: 800, lineHeight: 1, color: KPI_COLOR[k.tone] }}>{k.n}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
+            <span style={{ fontSize: 24, fontWeight: 700, color: "#1B1F27", ...ellipsis }}>{k.label}</span>
+            {k.pause ? (
+              <span
+                title={`${k.pause} en pausa`}
+                aria-label={`${k.pause} en pausa`}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "2px 10px",
+                  borderRadius: 999,
+                  background: "#FDECF1",
+                  color: "#A11C47",
+                  fontSize: 22,
+                  fontWeight: 700,
+                  flexShrink: 0,
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden style={{ flexShrink: 0 }}>
+                  <rect x="5" y="4" width="4" height="16" rx="1" />
+                  <rect x="15" y="4" width="4" height="16" rx="1" />
+                </svg>
+                <span>{k.pause}</span>
+              </span>
+            ) : null}
           </div>
         </div>
       ))}
@@ -119,22 +143,15 @@ function ActiveList({ model }: { model: MuralModel }) {
   const pager = usePages(rows, ACTIVE_ROWS);
   return (
     <section aria-label="Instalaciones activas" style={{ ...card, width: LIST_W, flexShrink: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      <div style={{ height: 60, flexShrink: 0, padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #EEF0F3" }}>
-        <span style={{ fontSize: 28, fontWeight: 800 }}>Instalaciones activas</span>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 22, fontWeight: 700, color: "#157F3D", background: "#E7F7EE", borderRadius: 999, padding: "4px 14px" }}>En obra · {model.active.nObra}</span>
-          <span style={{ fontSize: 22, fontWeight: 700, color: "#3B4FC4", background: "#EEF2FF", borderRadius: 999, padding: "4px 14px" }}>Programados · {model.active.nProg}</span>
-          <span style={{ marginLeft: 6 }}>
-            <PageNumber index={pager.index} count={pager.count} />
-          </span>
-        </div>
-      </div>
-      <div style={{ height: 40, flexShrink: 0, padding: "0 24px", display: "grid", gridTemplateColumns: COLS, columnGap: 12, alignItems: "center", background: "#F9FAFB", borderBottom: "1px solid #EEF0F3", fontSize: 22, fontWeight: 700, color: "#667085" }}>
+      <div style={{ height: 48, flexShrink: 0, padding: "0 24px", display: "grid", gridTemplateColumns: COLS, columnGap: 12, alignItems: "center", background: "#F9FAFB", borderBottom: "1px solid #EEF0F3", fontSize: 22, fontWeight: 700, color: "#667085" }}>
         <span>Proyecto</span>
         <span>Estado</span>
         <span>Equipo</span>
         <span>Fechas</span>
-        <span>Avance</span>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span>Avance</span>
+          <PageNumber index={pager.index} count={pager.count} />
+        </div>
       </div>
       {rows.length === 0 ? (
         <p style={{ margin: 0, padding: "40px 24px", fontSize: 26, fontWeight: 600, color: "#667085" }}>No hay instalaciones en obra ni programadas por ahora.</p>
@@ -150,19 +167,17 @@ function ActiveItem({ r }: { r: ActiveRow }) {
   const sub = [r.company.name, r.place, r.kwp ? `${r.kwp} kWp` : ""].filter(Boolean).join(" · ");
   return (
     <div style={{ height: ACTIVE_ROW_H, flexShrink: 0, padding: "0 24px", display: "grid", gridTemplateColumns: COLS, columnGap: 12, alignItems: "center", borderBottom: "1px solid #F0F1F4", boxSizing: "border-box" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-        <MuralMark company={r.company} size={46} />
-        <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1, lineHeight: 1.15 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
+        <MuralMark company={r.company} size={50} />
+        <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1, lineHeight: 1.2 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
             <span style={{ fontSize: 28, fontWeight: 700, ...ellipsis }}>{r.name}</span>
             {r.priority && <Flag size={24} />}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
             {r.note && (
-              <span style={{ flexShrink: 0, fontSize: 22, fontWeight: 700, color: "#9A3412", background: "#FFF1E7", borderRadius: 6, padding: "0 8px" }}>{r.note}</span>
+              <span style={{ flexShrink: 0, fontSize: 22, fontWeight: 700, color: "#9A3412", background: "#FFF1E7", borderRadius: 6, padding: "2px 8px" }}>{r.note}</span>
             )}
-            <span style={{ fontSize: 22, color: "#667085", ...ellipsis }}>{sub}</span>
           </div>
+          <span style={{ fontSize: 22, color: "#667085", ...ellipsis }}>{sub}</span>
         </div>
       </div>
       <div>
@@ -260,15 +275,11 @@ function Calendar({ model }: { model: MuralModel }) {
   const pager = usePages(pages, 1);
   const shown = pager.page[0];
   return (
-    <section aria-label="Calendario por equipo" style={{ ...card, flex: 1, minHeight: 0, padding: "16px 20px", display: "flex", flexDirection: "column", gap: 6, overflow: "hidden" }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, lineHeight: 1.2 }}>
-        <span style={{ fontSize: 28, fontWeight: 800, whiteSpace: "nowrap" }}>Calendario por equipo</span>
-        <span style={{ display: "flex", alignItems: "baseline", gap: 12, minWidth: 0 }}>
-          <span style={{ fontSize: 22, color: "#667085", fontWeight: 500, ...ellipsis }}>{cal.rangeLabel}</span>
-          <PageNumber index={pager.index} count={pager.count} />
-        </span>
+    <section aria-label="Calendario por equipo" style={{ ...card, flex: 1, minHeight: 0, padding: "16px 20px", display: "flex", flexDirection: "column", gap: 8, overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <Legend />
+        <PageNumber index={pager.index} count={pager.count} />
       </div>
-      <Legend />
 
       <div style={{ display: "grid", gridTemplateColumns: `${TEAM_COL}px minmax(0, 1fr)` }}>
         <div />

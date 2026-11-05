@@ -62,8 +62,9 @@ export type MuralKpi = {
   key: "obra" | "proximos" | "porProgramar" | "terminados";
   n: number;
   label: string;
-  sub: string;
+  sub?: string;
   tone: KpiTone;
+  pause?: number;
 };
 
 /** Fila de "Instalaciones activas" (MUR-03). */
@@ -228,7 +229,7 @@ function endDay(end: ISODate, today: ISODate): string {
 }
 
 /** Suma de kWp en décimas, sin errores de coma flotante. */
-function sumKwp(list: Project[]): string {
+export function sumKwp(list: Project[]): string {
   const cents = list.reduce((s, p) => s + (p.kwp ? Math.round(Number(p.kwp) * 100) : 0), 0);
   return (Math.round(cents / 10) / 10).toFixed(1);
 }
@@ -297,16 +298,16 @@ export function muralModel(input: MuralInput, settings: MuralSettings, today: IS
   const upcoming = prog.filter((p) => p.start_date && startsIn(p.start_date, today).days >= 0 && p.start_date <= horizon);
   const finishedMonth = projects.filter((p) => p.actual_end && p.actual_end.slice(0, 7) === today.slice(0, 7));
   const kpis: MuralKpi[] = [
-    { key: "obra", n: obra.length, label: "En obra", sub: `${sumKwp(obra)} kWp`, tone: "ok" },
-    { key: "proximos", n: upcoming.length, label: "Próximos", sub: "siguientes 2 semanas", tone: "indigo" },
+    { key: "obra", n: obra.length, label: "En obra", tone: "ok" },
+    { key: "proximos", n: upcoming.length, label: "Próximos", tone: "indigo" },
     {
       key: "porProgramar",
       n: waitingProjects.length,
       label: "Por programar",
-      sub: nPause ? `incluye ${nPause} en pausa` : "ninguno en pausa",
       tone: "slate",
+      ...(nPause > 0 ? { pause: nPause } : {}),
     },
-    { key: "terminados", n: finishedMonth.length, label: "Terminados", sub: `en ${monthName}`, tone: "brand" },
+    { key: "terminados", n: finishedMonth.length, label: "Terminados", tone: "brand" },
   ];
 
   // --- Instalaciones activas (MUR-03)
