@@ -228,7 +228,7 @@ test("equipos: el encargado debe ser Encargado o Supervisor", async () => {
   const emps = await employees();
   const bad = await ctx.request(`/teams/${e1.id}`, "PATCH", { version: e1.version, lead_employee_id: byName(emps, "Luis Peña").id }, ctx.office);
   assert.equal(bad.status, 422);
-  assert.match(bad.data.message, /Encargado o Supervisor/);
+  assert.match(bad.data.message, /pueda liderar equipos \(Supervisor y Encargado\)/);
   assert.equal((await ctx.request(`/teams/${e1.id}`, "PATCH", { version: e1.version, lead_employee_id: crypto.randomUUID() }, ctx.office)).status, 422);
   assert.equal(byName(await teams(), "Equipo 1").lead_employee_id, byName(emps, "Ramón Tejada").id);
 
@@ -345,3 +345,158 @@ test("empresas: no se desactiva con proyectos sin archivar (EQP-06)", async () =
   await pool.query("UPDATE projects SET archived=false WHERE company_id=$1", [compusol.id]);
   await pool.query("UPDATE companies SET active=true WHERE id=$1", [compusol.id]);
 });
+
+// ---------- Niveles y roles con vigencia (NIV-01, EQP-01b, EQP-03b, ACC-06) ----------
+
+type LevelRow = {
+  id: string;
+  code: string;
+  name: string;
+  group_label: string;
+  sort: number;
+  can_lead_team: boolean;
+  is_supervisor: boolean;
+  can_use_mobile: boolean;
+  is_field: boolean;
+  active: boolean;
+  version: number;
+  person_count: number;
+};
+type EmpFull = Emp & {
+  roles: { id: string; level_id: string; level: string; team_id: string | null; starts_on: string; ends_on: string | null; note: string }[];
+};
+
+const levels = async () => (await ctx.request<LevelRow[]>("/levels", "GET", undefined, ctx.office)).data;
+const fullEmployees = async () => (await ctx.request<EmpFull[]>("/employees", "GET", undefined, ctx.office)).data;
+
+test("niveles: CRUD en /api/levels, 403 para office, bloqueo de Oficina y sincronización de nombre (NIV-01, ROL-02)", async () => {
+  const initial = await levels();
+  assert.equal(initial.length, 5);
+  assert.ok(initial.some((l) => l.code === "tecnico" && l.person_count > 0));
+
+  // Office puede leer pero recibe 403 al escribir.
+  assert.equal((await ctx.request("/levels", "POST", { name: "Jefe de obra" }, ctx.office)).status, 403);
+  assert.equal((await ctx.request(`/levels/${initial[0].id}`, "PATCH", { version: initial[0].version, name: "Otro" }, ctx.office)).status, 403);
+
+  // Admin crea un nivel nuevo; código automático y unicidad por nombre sin distinguir mayúsculas.
+  const created = await ctx.request<LevelRow>(
+    "/levels",
+    "POST",
+    { name: "Jefe de obra", group_label: "Jefes de obra", icon: "flag", can_lead_team: true, can_use_mobile: true, is_field: true },
+    ctx.admin,
+  );
+  assert.equal(created.status, 201);
+  assert.equal(created.data.code, "jefe_de_obra");
+  assert.equal(created.data.can_lead_team, true);
+  assert.equal((await ctx.request("/levels", "POST", { name: "jefe de obra" }, ctx.admin)).status, 409);
+
+  // El nivel «Oficina» solo permite cambiar `sort`, no nombre ni permisos ni desactivarlo.
+  const oficina = byName(await levels(), "Oficina");
+  assert.equal((await ctx.request(`/levels/${oficina.id}`, "PATCH", { version: oficina.version, name: "Administración" }, ctx.admin)).status, 422);
+  assert.equal((await ctx.request(`/levels/${oficina.id}`, "PATCH", { version: oficina.version, active: false }, ctx.admin)).status, 422);
+
+  // Renombrar un nivel actualiza `employees.level` en los empleados que lo tienen como principal.
+  const ayudante = byName(await levels(), "Ayudante");
+  const ren = await ctx.request<LevelRow>(`/levels/${ayudante.id}`, "PATCH", { version: ayudante.version, name: "Auxiliar" }, ctx.admin);
+  assert.equal(ren.status, 200);
+  assert.equal(byName(await employees(), "Manuel Vargas").level, "Auxiliar");
+  const back = await ctx.request<LevelRow>(`/levels/${ayudante.id}`, "PATCH", { version: ren.data.version, name: "Ayudante" }, ctx.admin);
+  assert.equal(back.status, 200);
+  assert.equal(byName(await employees(), "Manuel Vargas").level, "Ayudante");
+});
+
+test("niveles: no desactivar nivel en uso ni dejar un equipo activo sin encargado (NIV-01)", async () => {
+  const tecnico = byName(await levels(), "Técnico");
+  const offUsed = await ctx.request(`/levels/${tecnico.id}`, "PATCH", { version: tecnico.version, active: false }, ctx.admin);
+  assert.equal(offUsed.status, 422);
+  assert.match(offUsed.data.message, /único nivel vigente/);
+
+  const encargado = byName(await levels(), "Encargado");
+  const noLead = await ctx.request(`/levels/${encargado.id}`, "PATCH", { version: encargado.version, can_lead_team: false }, ctx.admin);
+  assert.equal(noLead.status, 422);
+  assert.match(noLead.data.message, /se quedaría sin encargado/);
+});
+
+test("roles múltiples y vigencia: Técnico + Encargado puede liderar y la vigencia resuelve el encargado de hoy (EQP-01b, EQP-03b)", async () => {
+  const lvls = await levels();
+  const tecLvl = byName(lvls, "Técnico");
+  const encLvl = byName(lvls, "Encargado");
+  const e4 = byName(await teams(), "Equipo Cuatro");
+  const luis = byName(await fullEmployees(), "Luis Peña");
+
+  // Luis Peña recibe dos roles simultáneos hoy: Técnico + Encargado de E4 con vigencia, y un encargo futuro tras vencer el primero.
+  const patch = await ctx.request<EmpFull>(
+    `/employees/${luis.id}`,
+    "PATCH",
+    {
+      version: luis.version,
+      roles: [
+        { id: luis.roles[0].id, level_id: tecLvl.id, team_id: null, starts_on: "2026-07-01", ends_on: null, note: "" },
+        { level_id: encLvl.id, team_id: e4.id, starts_on: "2026-10-20", ends_on: "2026-11-15", note: "Suplencia" },
+      ],
+    },
+    ctx.office,
+  );
+  assert.equal(patch.status, 200);
+  // Su nivel principal pasa a ser el de mayor jerarquía (Encargado) y E4 lo resuelve como encargado hoy.
+  assert.equal(patch.data.level, "Encargado");
+  assert.equal(byName(await teams(), "Equipo Cuatro").lead_employee_id, luis.id);
+
+  // Otro empleado no puede solapar encargo del mismo equipo en las mismas fechas.
+  const kelvin = byName(await fullEmployees(), "Kelvin Rosario");
+  const overlap = await ctx.request(
+    `/employees/${kelvin.id}`,
+    "PATCH",
+    {
+      version: kelvin.version,
+      roles: [
+        { id: kelvin.roles[0].id, level_id: tecLvl.id, team_id: null, starts_on: "2026-07-01", ends_on: null, note: "" },
+        { level_id: encLvl.id, team_id: e4.id, starts_on: "2026-11-01", ends_on: "2026-11-20", note: "" },
+      ],
+    },
+    ctx.office,
+  );
+  assert.equal(overlap.status, 422);
+  assert.match(overlap.data.message, /ya tiene a Luis Peña como encargado/);
+
+  // Si empieza después del 15 nov (sin cruce), sí se guarda; hoy el encargado sigue siendo Luis Peña.
+  const futureLead = await ctx.request<EmpFull>(
+    `/employees/${kelvin.id}`,
+    "PATCH",
+    {
+      version: kelvin.version,
+      roles: [
+        { id: kelvin.roles[0].id, level_id: tecLvl.id, team_id: null, starts_on: "2026-07-01", ends_on: null, note: "" },
+        { level_id: encLvl.id, team_id: e4.id, starts_on: "2026-11-16", ends_on: null, note: "Relevo" },
+      ],
+    },
+    ctx.office,
+  );
+  assert.equal(futureLead.status, 200);
+  assert.equal(byName(await teams(), "Equipo Cuatro").lead_employee_id, luis.id);
+});
+
+test("quitar can_use_mobile o pasar a un nivel sin móvil revoca el enlace móvil (NIV-01, ACC-06)", async () => {
+  // No se puede crear enlace móvil para un empleado de Oficina (can_use_mobile = false).
+  const ana = byName(await fullEmployees(), "Ana Guzmán");
+  const denied = await ctx.request("/access-links", "POST", { kind: "mobile", employee_id: ana.id }, ctx.admin);
+  assert.equal(denied.status, 422);
+  assert.match(denied.data.message, /no tiene acceso móvil/);
+
+  // Creamos un empleado con el nivel «Jefe de obra» (tiene can_use_mobile = true), le damos enlace móvil y luego quitamos can_use_mobile al nivel.
+  const jefeLvl = byName(await levels(), "Jefe de obra");
+  const emp = (await ctx.request<EmpFull>("/employees", "POST", { name: "Dario Móvil", level: "Jefe de obra" }, ctx.office)).data;
+  const link = await ctx.request<{ link: { id: string } }>("/access-links", "POST", { kind: "mobile", employee_id: emp.id }, ctx.admin);
+  assert.equal(link.status, 201);
+  assert.equal(byName(await employees(), "Dario Móvil").mobile_access, "active");
+
+  const offMobile = await ctx.request<LevelRow>(
+    `/levels/${jefeLvl.id}`,
+    "PATCH",
+    { version: jefeLvl.version, can_use_mobile: false },
+    ctx.admin,
+  );
+  assert.equal(offMobile.status, 200);
+  assert.equal(byName(await employees(), "Dario Móvil").mobile_access, "revoked");
+});
+

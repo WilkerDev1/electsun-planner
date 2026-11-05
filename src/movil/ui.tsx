@@ -122,6 +122,7 @@ export function SectionTitle({ children }: { children: ReactNode }) {
 export function PersonRow({ person }: { person: MovilPerson }) {
   const lead = person.is_lead;
   const away = person.state === "Vacaciones";
+  const rolesText = person.level_names?.length ? person.level_names.join(" · ") : person.level;
   return (
     <div className="flex min-h-11 items-center gap-3">
       <span
@@ -137,7 +138,7 @@ export function PersonRow({ person }: { person: MovilPerson }) {
           {person.is_me && " (tú)"}
         </span>
         <span className={`text-[14px] ${away ? "text-warn" : lead ? "text-[#3B4FC4]" : "text-muted"}`}>
-          {person.level}
+          {rolesText}
           {away && " · de vacaciones"}
         </span>
       </span>

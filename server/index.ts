@@ -7,11 +7,12 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ZodError } from "zod";
-import { pool, migrate } from "./db.js";
+import { pool, migrate, transaction } from "./db.js";
 import { loadUser, passwordHash } from "./auth.js";
 import { eventsHandler } from "./events.js";
 import { seedDemo } from "./seed.js";
 import { serverToday } from "./today.js";
+import { syncDerived } from "./roles.js";
 import { auth } from "./routes/auth.js";
 import { accounts } from "./routes/accounts.js";
 import { accessLinks } from "./routes/access-links.js";
@@ -22,6 +23,7 @@ import { employees } from "./routes/employees.js";
 import { teams } from "./routes/teams.js";
 import { companies } from "./routes/companies.js";
 import { prepItems } from "./routes/prep-items.js";
+import { levels } from "./routes/levels.js";
 import { companiesRead, employeesRead, statusesRead, teamsRead } from "./routes/catalogs.js";
 import { mural } from "./routes/mural.js";
 import { notices } from "./routes/notices.js";
@@ -92,6 +94,7 @@ app.use("/api/employees", employeesRead, employees);
 app.use("/api/teams", teamsRead, teams);
 app.use("/api/companies", companiesRead, companies);
 app.use("/api/prep-items", prepItems);
+app.use("/api/levels", levels);
 app.use("/api/mural", mural);
 app.use("/api/notices", notices);
 app.use("/api/view/mural", viewMural);
@@ -153,8 +156,11 @@ export async function start() {
     pool
       .query("DELETE FROM sessions WHERE expires_at<now(); DELETE FROM device_sessions WHERE expires_at<now(); DELETE FROM invitations WHERE expires_at<now()-interval '30 days'")
       .catch(() => {});
+  // Un rol que empieza o vence con el cambio de día no pasa por ninguna escritura: se sincronizan las copias al arrancar y cada hora (EQP-03b).
+  const syncRoles = () => transaction((c) => syncDerived(c, serverToday())).catch(() => {});
   await purge();
-  const purgeTimer = setInterval(purge, 3600000);
+  await syncRoles();
+  const purgeTimer = setInterval(() => void Promise.all([purge(), syncRoles()]), 3600000);
   purgeTimer.unref();
   const server = app.listen(Number(process.env.PORT ?? 8091), "0.0.0.0", () => console.log("Electsun Planner listo"));
   process.on("SIGTERM", () => server.close(() => void pool.end()));

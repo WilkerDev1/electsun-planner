@@ -5,31 +5,21 @@ import { transaction, httpError } from "../db.js";
 import { authenticated } from "../auth.js";
 import { audit, diffOf } from "../audit.js";
 import { publishChange } from "../events.js";
+import { listTeams } from "../queries.js";
+import { lockRoles, setTeamLead, syncDerived } from "../roles.js";
+import { serverToday } from "../today.js";
 import { TeamCreate, TeamPatch, type Team } from "../../shared/contracts/equipo.js";
 
 // F1·C — Escrituras de equipos de obra (EQP-03, EQP-04, EQP-06)
 export const teams = Router();
 
 const FIELDS = ["code", "name", "lead_employee_id", "color", "active"] as const;
+// `lead_employee_id` no se escribe directo: el encargado sale de los roles vigentes (EQP-03b) y la columna es una copia.
+const COLUMNS = FIELDS.filter((f) => f !== "lead_employee_id");
 
 async function getTeam(c: PoolClient, id: string, lock = false): Promise<Team | undefined> {
   if (lock) await c.query("SELECT 1 FROM teams WHERE id=$1 FOR UPDATE", [id]);
-  const r = await c.query(
-    `SELECT t.id,t.code,t.name,t.lead_employee_id,t.color,t.active,t.version,
-      COALESCE(array_agg(e.id ORDER BY e.name) FILTER (WHERE e.id IS NOT NULL),'{}') AS member_ids
-     FROM teams t LEFT JOIN employees e ON e.team_id=t.id WHERE t.id=$1 GROUP BY t.id`,
-    [id],
-  );
-  return r.rows[0];
-}
-
-/** El encargado debe ser un empleado de nivel Encargado o Supervisor (EQP-03). */
-async function assertLead(c: PoolClient, leadId: string | null | undefined) {
-  if (!leadId) return;
-  const r = await c.query("SELECT level FROM employees WHERE id=$1", [leadId]);
-  if (!r.rowCount) throw httpError(422, "Ese empleado ya no existe.");
-  if (!["Encargado", "Supervisor"].includes(r.rows[0].level))
-    throw httpError(422, "El encargado debe ser un empleado de nivel Encargado o Supervisor.");
+  return (await listTeams(c, serverToday(), { id }))[0];
 }
 
 async function assertCodeFree(c: PoolClient, code: string, exceptId?: string) {
@@ -40,12 +30,12 @@ async function assertCodeFree(c: PoolClient, code: string, exceptId?: string) {
 teams.post("/", authenticated, async (req, res) => {
   const b = TeamCreate.parse(req.body);
   const created = await transaction(async (c) => {
+    const today = serverToday();
+    await lockRoles(c);
     await assertCodeFree(c, b.code);
-    await assertLead(c, b.lead_employee_id);
-    const r = await c.query(
-      "INSERT INTO teams(id,code,name,lead_employee_id,color) VALUES(gen_random_uuid(),$1,$2,$3,$4) RETURNING id",
-      [b.code, b.name, b.lead_employee_id ?? null, b.color ?? null],
-    );
+    const r = await c.query("INSERT INTO teams(id,code,name,color) VALUES(gen_random_uuid(),$1,$2,$3) RETURNING id", [b.code, b.name, b.color ?? null]);
+    if (b.lead_employee_id) await setTeamLead(c, r.rows[0].id, b.lead_employee_id, today, req.user!.id);
+    await syncDerived(c, today);
     const t = (await getTeam(c, r.rows[0].id))!;
     await audit(c, req.user!.id, "team.create", "team", t.id, diffOf(null, t, [...FIELDS]));
     return t;
@@ -65,7 +55,10 @@ teams.patch("/:id", authenticated, async (req, res) => {
       throw httpError(409, "Otra persona cambió este equipo. Se recargó; revisa y vuelve a intentar.");
 
     if (changes.code !== undefined && changes.code !== before.code) await assertCodeFree(c, changes.code, id.data);
-    if (changes.lead_employee_id !== undefined) await assertLead(c, changes.lead_employee_id);
+    if (changes.lead_employee_id !== undefined) {
+      await lockRoles(c);
+      await setTeamLead(c, id.data, changes.lead_employee_id, serverToday(), req.user!.id);
+    }
 
     // EQP-06: un equipo con obras programadas o en curso no se puede desactivar.
     if (changes.active === false && before.active) {
@@ -86,7 +79,7 @@ teams.patch("/:id", authenticated, async (req, res) => {
 
     const sets: string[] = [];
     const args: unknown[] = [];
-    for (const f of FIELDS) {
+    for (const f of COLUMNS) {
       if (changes[f] === undefined) continue;
       args.push(changes[f]);
       sets.push(`${f}=$${args.length}`);
@@ -115,6 +108,7 @@ teams.patch("/:id", authenticated, async (req, res) => {
     args.push(id.data);
     await c.query(`UPDATE teams SET ${sets.length ? sets.join(",") + "," : ""}version=version+1,updated_at=now() WHERE id=$${args.length}`, args);
 
+    if (changes.lead_employee_id !== undefined) await syncDerived(c, serverToday());
     const after = (await getTeam(c, id.data))!;
     const diff: Record<string, unknown> = diffOf(before, after, [...FIELDS]);
     if (JSON.stringify([...before.member_ids].sort()) !== JSON.stringify([...after.member_ids].sort()))

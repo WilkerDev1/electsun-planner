@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { transaction } from "./db.js";
-import { addDays, countWorkdays, diffDays, mondayOf } from "../shared/domain.js";
+import { DEFAULT_LEVELS, addDays, countWorkdays, diffDays, mondayOf } from "../shared/domain.js";
 import { DEMO_TODAY, demoCompanies, demoEmployees, demoNotices, demoPrepItems, demoProjects, demoTeams } from "../shared/seed-demo.js";
 
 /**
@@ -10,7 +10,7 @@ import { DEMO_TODAY, demoCompanies, demoEmployees, demoNotices, demoPrepItems, d
 export async function seedDemo(today: string, opts: { reset?: boolean } = {}) {
   return transaction(async (c) => {
     if (opts.reset)
-      await c.query("TRUNCATE projects,notices,access_links,device_sessions,employees,teams,companies,prep_items,audit CASCADE");
+      await c.query("TRUNCATE projects,notices,access_links,device_sessions,employees,teams,companies,prep_items,levels,audit CASCADE");
     else if ((await c.query("SELECT 1 FROM projects LIMIT 1")).rowCount) return false;
     const shift = diffDays(mondayOf(DEMO_TODAY), mondayOf(today));
     const d = (iso: string) => (iso ? addDays(iso, shift) : null);
@@ -22,6 +22,15 @@ export async function seedDemo(today: string, opts: { reset?: boolean } = {}) {
       company.set(x.name, id);
       await c.query("INSERT INTO companies(id,name,code,color,pattern) VALUES($1,$2,$3,$4,$5)", [id, x.name, x.code, x.color, x.pattern]);
     }
+    // Niveles: la migración ya trae los cinco de siempre; con `reset` se vacían y se vuelven a crear.
+    if (opts.reset)
+      for (const l of DEFAULT_LEVELS)
+        await c.query(
+          `INSERT INTO levels(id,code,name,group_label,sort,fg,bg,border,icon,can_lead_team,is_supervisor,can_use_mobile,is_field,active)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+          [uuid(), l.code, l.name, l.group_label, l.sort, l.fg, l.bg, l.border, l.icon, l.can_lead_team, l.is_supervisor, l.can_use_mobile, l.is_field, l.active],
+        );
+    const level = new Map<string, string>((await c.query("SELECT id,name FROM levels")).rows.map((r) => [r.name, r.id]));
     const team = new Map<string, string>();
     for (const t of demoTeams) {
       const id = uuid();
@@ -38,6 +47,13 @@ export async function seedDemo(today: string, opts: { reset?: boolean } = {}) {
     }
     for (const t of demoTeams)
       await c.query("UPDATE teams SET lead_employee_id=$1 WHERE id=$2", [employee.get(t.lead), team.get(t.code)]);
+    // Un rol sin fecha de fin por persona; el encargado lleva además su equipo (EQP-01b, EQP-03b).
+    for (const e of demoEmployees) {
+      const leads = demoTeams.find((t) => t.lead === e.name);
+      await c.query("INSERT INTO employee_roles(id,employee_id,level_id,team_id,starts_on) VALUES($1,$2,$3,$4,$5)", [
+        uuid(), employee.get(e.name), level.get(e.level), leads ? team.get(leads.code) : null, addDays(today, -90),
+      ]);
+    }
 
     // Catálogo de preparación: la migración ya trae PL, MA y EDE; se agrega lo que falte (con `reset` se vacía y se crea completo).
     for (const i of demoPrepItems)
@@ -47,6 +63,8 @@ export async function seedDemo(today: string, opts: { reset?: boolean } = {}) {
       );
     const prepItem = new Map<string, string>((await c.query("SELECT id,code FROM prep_items")).rows.map((r) => [r.code, r.id]));
 
+    if (opts.reset)
+      await c.query("UPDATE statuses SET name='Esperando medidor' WHERE kind='post_obra' AND name<>'Esperando medidor'");
     const status = new Map<string, string>(
       (await c.query("SELECT id,name FROM statuses")).rows.map((r) => [r.name, r.id]),
     );

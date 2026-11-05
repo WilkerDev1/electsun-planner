@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "../../ui/api";
-import type { Company, Employee, Team } from "../../../shared/contracts/equipo";
+import type { Company, Employee, LevelItem, Team } from "../../../shared/contracts/equipo";
 import type { Project } from "../../../shared/contracts/projects";
 import type { EquipoData } from "./model";
 
@@ -14,8 +14,9 @@ export function useEquipo() {
 
   const reload = useCallback(async () => {
     try {
-      const [employees, teams, companies, projects] = await Promise.all([
+      const [employees, levels, teams, companies, projects] = await Promise.all([
         api<Employee[]>("/employees"),
+        api<LevelItem[]>("/levels"),
         api<Team[]>("/teams"),
         api<Company[]>("/companies"),
         api<unknown>("/projects").then(
@@ -23,7 +24,7 @@ export function useEquipo() {
           () => null,
         ),
       ]);
-      setData({ employees, teams, companies, projects });
+      setData({ employees, levels, levelsById: new Map(levels.map((l) => [l.id, l])), teams, companies, projects });
       setError(null);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "No se pudo cargar el equipo.");

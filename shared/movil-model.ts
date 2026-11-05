@@ -22,7 +22,7 @@ import {
   missingPrep,
   weekdayShort,
   workdayIndex,
-  LEVELS,
+  DEFAULT_LEVELS,
   type EmployeeState,
   type ISODate,
   type Level,
@@ -57,6 +57,15 @@ export type MobileEmployee = {
   team_id: string | null;
   state: EmployeeState;
   phone: string;
+  /**
+   * Niveles vigentes hoy, el principal primero (NIV-01). Si no llegan (pruebas en memoria), se usa `level`.
+   * `level` queda como el nombre del principal; el móvil muestra todos unidos por « · ».
+   */
+  level_names?: string[];
+  /** `sort` del nivel principal, para ordenar por jerarquía. */
+  level_sort?: number;
+  /** El empleado tiene hoy un nivel vigente con `is_supervisor`. Sin este dato se usa `level === "Supervisor"`. */
+  is_supervisor?: boolean;
 };
 export type MobileTeam = { id: string; code: string; name: string; lead_employee_id: string | null; active: boolean };
 export type MobileCompany = { id: string; name: string; code: string; color: string; pattern?: CompanyPattern; logo_url?: string | null };
@@ -114,7 +123,9 @@ export const mapsUrl = (place: string): string | null =>
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${place.trim()}, República Dominicana`)}`
     : null;
 
-const levelRank = (l: Level) => LEVELS.indexOf(l);
+const levelRank = (e: MobileEmployee) => e.level_sort ?? DEFAULT_LEVELS.find((l) => l.name === e.level)?.sort ?? 999;
+const levelText = (e: MobileEmployee) => (e.level_names?.length ? e.level_names.join(" · ") : e.level);
+const isSupervisor = (e: MobileEmployee) => e.is_supervisor ?? e.level === "Supervisor";
 
 /**
  * Qué ve un empleado (CAL-09). Solo se incluyen teléfonos de su equipo y del encargado y el supervisor de cada obra (MOV-08);
@@ -139,7 +150,7 @@ export function mobileModel(input: MobileInput, employeeId: string, today: ISODa
     id: e.id,
     name: e.name,
     initials: initials(e.name),
-    level: e.level,
+    level: levelText(e),
     state: e.state,
     is_lead: e.id === leadId,
     is_me: e.id === me.id,
@@ -152,15 +163,17 @@ export function mobileModel(input: MobileInput, employeeId: string, today: ISODa
     const lead = team.lead_employee_id ? employeeById.get(team.lead_employee_id) : undefined;
     if (lead && lead.state !== "De baja" && !people.some((e) => e.id === lead.id)) people.push(lead);
     return people
-      .map((e) => person(e, team.lead_employee_id, mineTeam || e.id === team.lead_employee_id))
       .sort(
         (a, b) =>
-          Number(b.is_lead) - Number(a.is_lead) || levelRank(a.level) - levelRank(b.level) || a.name.localeCompare(b.name, "es"),
-      );
+          Number(b.id === team.lead_employee_id) - Number(a.id === team.lead_employee_id) ||
+          levelRank(a) - levelRank(b) ||
+          a.name.localeCompare(b.name, "es"),
+      )
+      .map((e) => person(e, team.lead_employee_id, mineTeam || e.id === team.lead_employee_id));
   }
 
   const supervisor = input.employees
-    .filter((e) => e.level === "Supervisor" && e.state !== "De baja")
+    .filter((e) => isSupervisor(e) && e.state !== "De baja")
     .sort((a, b) => a.name.localeCompare(b.name, "es"))[0];
 
   // ---------- Obras ----------
@@ -373,7 +386,7 @@ export function mobileModel(input: MobileInput, employeeId: string, today: ISODa
       name: me.name,
       first_name: me.name.split(" ")[0],
       initials: initials(me.name),
-      level: me.level,
+      level: levelText(me),
       team_id: me.team_id,
       team_code: myTeam?.code ?? null,
     },

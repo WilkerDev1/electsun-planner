@@ -19,6 +19,8 @@ export type MovilPerson = {
   name: string;
   initials: string;
   level: Level;
+  /** Todos los niveles vigentes hoy, el principal primero (EQP-01b). */
+  level_names?: Level[];
   state: EmployeeState;
   is_lead: boolean;
   is_me: boolean;
