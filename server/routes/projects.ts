@@ -1,4 +1,5 @@
 import { Router, type Request } from "express";
+import rateLimit from "express-rate-limit";
 import multer from "multer";
 import { z } from "zod";
 import { pool, transaction, httpError } from "../db.js";
@@ -234,7 +235,15 @@ const upload = multer({
     /\.xlsx$/i.test(file.originalname) ? cb(null, true) : cb(httpError(422, "Sube un archivo de Excel con extensión .xlsx.")),
 });
 
-projects.post("/import", authenticated, upload.single("file"), async (req, res) => {
+export const importLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  limit: 15,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { message: "Demasiadas importaciones. Espera 5 minutos." },
+});
+
+projects.post("/import", authenticated, importLimiter, upload.single("file"), async (req, res) => {
   const file = req.file;
   if (!file) throw httpError(422, "Elige un archivo .xlsx para importar.");
   if (file.buffer.length < 4 || file.buffer[0] !== 0x50 || file.buffer[1] !== 0x4b)

@@ -157,10 +157,33 @@ async function guardZip(buffer: Buffer) {
     throw Object.assign(new Error("No se pudo leer el archivo. Verifica que sea un Excel (.xlsx) válido."), { status: 422 });
   }
   const files = Object.values(zip.files);
-  // `_data.uncompressedSize` es el tamaño declarado en el índice del zip, sin descomprimir nada.
-  const total = files.reduce((sum, f) => sum + ((f as unknown as { _data?: { uncompressedSize?: number } })._data?.uncompressedSize ?? 0), 0);
-  if (files.length > MAX_ENTRIES || total > MAX_UNZIPPED)
+  if (files.length > MAX_ENTRIES)
     throw Object.assign(new Error("El archivo es demasiado grande para importarlo. Divide el Excel en partes más pequeñas."), { status: 422 });
+
+  let total = 0;
+  for (const file of files) {
+    if (file.dir) continue;
+    await new Promise<void>((resolve, reject) => {
+      let done = false;
+      const s = file.nodeStream();
+      s.on("data", (chunk: Buffer | Uint8Array) => {
+        total += chunk.length;
+        if (total > MAX_UNZIPPED) {
+          done = true;
+          (s as { destroy?: () => void }).destroy?.();
+          reject(Object.assign(new Error("El archivo es demasiado grande para importarlo. Divide el Excel en partes más pequeñas."), { status: 422 }));
+        }
+      });
+      s.on("end", () => {
+        if (!done) resolve();
+      });
+      s.on("error", (err: unknown) => {
+        if (!done) {
+          reject(Object.assign(new Error("No se pudo leer el archivo. Verifica que sea un Excel (.xlsx) válido."), { status: 422, cause: err }));
+        }
+      });
+    });
+  }
 }
 
 export async function importProjects(

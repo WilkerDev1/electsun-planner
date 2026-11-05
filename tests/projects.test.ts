@@ -1,8 +1,9 @@
-import test, { before, after } from "node:test";
+import test, { before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import ExcelJS from "exceljs";
 import { setup, endPool, pool, type Ctx } from "./helpers.js";
 import { currentVersion } from "../server/events.js";
+import { importLimiter } from "../server/routes/projects.js";
 import type { Project, HistoryEntry, ImportReport } from "../shared/contracts/projects.js";
 import type { Status } from "../shared/contracts/statuses.js";
 
@@ -16,6 +17,10 @@ before(async () => {
   teams = Object.fromEntries((await ctx.request("/teams", "GET", undefined, ctx.office)).data.map((t: { code: string; id: string }) => [t.code, t.id]));
   companies = Object.fromEntries((await ctx.request("/companies", "GET", undefined, ctx.office)).data.map((c: { name: string; id: string }) => [c.name, c.id]));
   statuses = Object.fromEntries((await ctx.request("/statuses", "GET", undefined, ctx.office)).data.map((s: Status) => [s.name, s]));
+});
+beforeEach(async () => {
+  await importLimiter.resetKey("127.0.0.1");
+  await importLimiter.resetKey("::ffff:127.0.0.1");
 });
 after(async () => {
   await ctx.close();
@@ -535,6 +540,26 @@ test("importar: rechaza hojas con demasiadas filas y zips que se expanden demasi
   const r = await upload(bomb, "1");
   assert.equal(r.status, 422);
   assert.match(r.data.message ?? "", /demasiado grande/);
+
+  // Zip con tamaño declarado falso en las cabeceras (1 KB declarado en índice, pero expande a >20 MB reales).
+  const zipFalse = new JSZip();
+  zipFalse.file("xl/falso.xml", "0".repeat(21 * 1024 * 1024));
+  const bombBuf = Buffer.from(await zipFalse.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }));
+  const cdSig = Buffer.from([0x50, 0x4b, 0x01, 0x02]);
+  let idx = bombBuf.indexOf(cdSig);
+  while (idx !== -1) {
+    if (bombBuf.readUInt32LE(idx + 24) > 0) bombBuf.writeUInt32LE(1024, idx + 24);
+    idx = bombBuf.indexOf(cdSig, idx + 4);
+  }
+  const localSig = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
+  let lidx = bombBuf.indexOf(localSig);
+  while (lidx !== -1) {
+    if (bombBuf.readUInt32LE(lidx + 22) > 0) bombBuf.writeUInt32LE(1024, lidx + 22);
+    lidx = bombBuf.indexOf(localSig, lidx + 4);
+  }
+  const rFalse = await upload(bombBuf, "1");
+  assert.equal(rFalse.status, 422);
+  assert.match(rFalse.data.message ?? "", /demasiado grande/);
 });
 
 test("En obra exige fin o días estimados además de inicio y equipo (VAL-01)", async () => {
