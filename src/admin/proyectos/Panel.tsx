@@ -101,6 +101,7 @@ export function Panel({ project: p, catalogs, lk, rows, today, isAdmin, save, la
     const need: string[] = [];
     if (s.requires_schedule && !p.start_date) need.push("la fecha de inicio");
     if (s.requires_schedule && !p.team_id) need.push("el equipo");
+    if (s.requires_schedule && !p.end_date && !p.estimated_days) need.push("el fin previsto o los días estimados");
     if (s.requires_reason && !p.pause_reason.trim()) need.push("el motivo de la pausa");
     return need;
   };

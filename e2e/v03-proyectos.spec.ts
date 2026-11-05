@@ -69,3 +69,19 @@ test("archivar con deshacer, ver archivados y restaurar en bloque (PRY-10, PRY-1
   await page.getByRole("button", { name: /^Todos/ }).click();
   await expect(page.getByLabel("Seleccionar Villa Serena")).toBeVisible();
 });
+
+test("pasar a Programado sin fin previsto ni días estimados muestra el aviso en el panel (VAL-01)", async ({ page }) => {
+  await login(page, ADMIN);
+  await page.goto("/proyectos");
+  await page.getByRole("button", { name: "Editar Paola Núñez", exact: true }).click();
+  const panel = page.getByRole("complementary", { name: "Editar proyecto" });
+  await expect(panel).toBeVisible();
+
+  await panel.getByLabel("Equipo").selectOption({ label: "E1" });
+  const startInput = panel.getByLabel("Inicio");
+  await startInput.fill("2026-11-02");
+  await startInput.press("Enter");
+
+  await panel.getByRole("button", { name: "Programado", exact: true }).click();
+  await expect(panel.getByText(/completa primero el fin previsto o los días estimados/i)).toBeVisible();
+});
