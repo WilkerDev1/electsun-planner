@@ -29,6 +29,13 @@ import {
   mergeProject,
   prepRows,
   waitLabel,
+  DEFAULT_LEVELS,
+  effectiveRoles,
+  effectiveTeamLead,
+  findLeadOverlap,
+  isRoleActiveOn,
+  spansOverlap,
+  type LevelDef,
   type PrepCatalogItem,
   type Schedulable,
 } from "../shared/domain.js";
@@ -268,3 +275,94 @@ test("los avisos llevan código y coinciden con su texto (VAL-06, CAL-06)", () =
   for (const w of v.coded) assert.equal(warningCodeOf(w.text), w.code);
   assert.equal(warningCodeOf("Otra cosa"), undefined);
 });
+
+// ---------- Niveles y roles con vigencia (NIV-01, EQP-01b, EQP-03b) ----------
+
+const LEVELS_BY_ID = new Map<string, LevelDef>(
+  DEFAULT_LEVELS.map((l) => [l.code, { ...l, id: l.code }]),
+);
+
+test("vigencia de un rol: vigente hoy, futuro y vencido (EQP-01b)", () => {
+  assert.equal(isRoleActiveOn({ starts_on: "2026-10-01", ends_on: null }, TODAY), true);
+  assert.equal(isRoleActiveOn({ starts_on: TODAY, ends_on: TODAY }, TODAY), true);
+  assert.equal(isRoleActiveOn({ starts_on: "2026-10-20", ends_on: "2026-10-26" }, TODAY), false);
+  assert.equal(isRoleActiveOn({ starts_on: "2026-10-28", ends_on: null }, TODAY), false);
+});
+
+test("roles simultáneos: nivel principal por jerarquía y unión de permisos operativos (NIV-01, EQP-01b)", () => {
+  const roles = [
+    { level_id: "tecnico", team_id: null, starts_on: "2026-01-01", ends_on: null },
+    { level_id: "encargado", team_id: "e1", starts_on: "2026-10-20", ends_on: "2026-10-31" },
+    { level_id: "supervisor", team_id: null, starts_on: "2026-09-01", ends_on: "2026-09-30" },
+    { level_id: "encargado", team_id: "e2", starts_on: "2026-11-01", ends_on: null },
+  ];
+  const eff = effectiveRoles(roles, LEVELS_BY_ID, TODAY);
+  assert.equal(eff.primary?.code, "encargado");
+  assert.equal(eff.display?.code, "encargado");
+  assert.deepEqual(eff.current.map((r) => r.level.code), ["encargado", "tecnico"]);
+  assert.equal(eff.past.length, 1);
+  assert.equal(eff.future.length, 1);
+  assert.deepEqual(eff.perms, {
+    can_lead_team: true,
+    is_supervisor: false,
+    can_use_mobile: true,
+    is_field: true,
+  });
+
+  // Un nivel con permisos propios (sin is_field, pero con is_supervisor) se une con Técnico (is_field).
+  const effSup = effectiveRoles(
+    [
+      { level_id: "tecnico", team_id: null, starts_on: "2026-01-01", ends_on: null },
+      { level_id: "supervisor", team_id: null, starts_on: "2026-10-01", ends_on: null },
+    ],
+    LEVELS_BY_ID,
+    TODAY,
+  );
+  assert.equal(effSup.primary?.code, "supervisor");
+  assert.equal(effSup.perms.is_supervisor, true);
+  assert.equal(effSup.perms.is_field, true);
+});
+
+test("encargado efectivo hoy: pasa del Equipo 1 al Equipo 2 según la fecha (EQP-03b)", () => {
+  const roles = [
+    { employee_id: "ramon", level_id: "encargado", team_id: "e1", starts_on: "2026-01-01", ends_on: "2026-10-31" },
+    { employee_id: "ramon", level_id: "encargado", team_id: "e2", starts_on: "2026-11-01", ends_on: null },
+    { employee_id: "luis", level_id: "encargado", team_id: "e1", starts_on: "2026-11-01", ends_on: null },
+  ];
+  assert.equal(effectiveTeamLead(roles, LEVELS_BY_ID, "e1", "2026-10-27"), "ramon");
+  assert.equal(effectiveTeamLead(roles, LEVELS_BY_ID, "e2", "2026-10-27"), null);
+  assert.equal(effectiveTeamLead(roles, LEVELS_BY_ID, "e1", "2026-11-02"), "luis");
+  assert.equal(effectiveTeamLead(roles, LEVELS_BY_ID, "e2", "2026-11-02"), "ramon");
+});
+
+test("cruce de encargos del mismo equipo (EQP-03b)", () => {
+  assert.equal(
+    spansOverlap({ starts_on: "2026-10-01", ends_on: "2026-10-15" }, { starts_on: "2026-10-16", ends_on: null }),
+    false,
+  );
+  assert.equal(
+    spansOverlap({ starts_on: "2026-10-01", ends_on: "2026-10-16" }, { starts_on: "2026-10-16", ends_on: null }),
+    true,
+  );
+  assert.equal(
+    findLeadOverlap(
+      [
+        { level_id: "encargado", team_id: "e1", starts_on: "2026-10-01", ends_on: "2026-10-15" },
+        { level_id: "encargado", team_id: "e1", starts_on: "2026-10-16", ends_on: null },
+      ],
+      LEVELS_BY_ID,
+    ),
+    null,
+  );
+  assert.notEqual(
+    findLeadOverlap(
+      [
+        { level_id: "encargado", team_id: "e1", starts_on: "2026-10-01", ends_on: "2026-10-20" },
+        { level_id: "supervisor", team_id: "e1", starts_on: "2026-10-20", ends_on: null },
+      ],
+      LEVELS_BY_ID,
+    ),
+    null,
+  );
+});
+

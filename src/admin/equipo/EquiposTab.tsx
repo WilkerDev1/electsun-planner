@@ -1,21 +1,20 @@
 import { useState, type FormEvent } from "react";
 import { api, ApiError } from "../../ui/api";
 import { Banner, Button, Empty, Field, Toggle, initials } from "../../ui/components";
-import { fold, plural } from "../../../shared/domain";
+import { fold, joinEs, plural, type ISODate } from "../../../shared/domain";
 import type { Employee, Team } from "../../../shared/contracts/equipo";
-import { ICON, STATE_STYLE, teamAgenda, type EquipoData, type TabProps } from "./model";
+import { ICON, STATE_STYLE, rolesOf, teamAgenda, type EquipoData, type TabProps } from "./model";
 import { Avatar, IconButton, Svg, inputCls } from "./ui";
 import { Modal } from "../../ui/Modal";
 
 const GRID = "grid items-center grid-cols-[210px_210px_minmax(240px,1fr)_230px_190px_52px]";
-const LEAD_LEVELS = ["Encargado", "Supervisor"];
 
 export function EquiposTab({ data, today, query, done }: TabProps) {
   const [editing, setEditing] = useState<Team | "new" | null>(null);
   const q = fold(query);
   const emp = (id: string | null) => data.employees.find((e) => e.id === id);
   const rows = data.teams.filter((t) => !q || fold(`${t.code} ${t.name} ${emp(t.lead_employee_id)?.name ?? ""}`).includes(q));
-  const supervisor = data.employees.find((e) => e.level === "Supervisor");
+  const supervisor = data.employees.find((e) => rolesOf(e, data, today).perms.is_supervisor);
 
   return (
     <>
@@ -119,6 +118,7 @@ export function EquiposTab({ data, today, query, done }: TabProps) {
         <TeamDialog
           team={editing === "new" ? null : editing}
           data={data}
+          today={today}
           onClose={() => setEditing(null)}
           onSaved={async (msg) => {
             setEditing(null);
@@ -130,7 +130,7 @@ export function EquiposTab({ data, today, query, done }: TabProps) {
   );
 }
 
-function TeamDialog({ team, data, onClose, onSaved }: { team: Team | null; data: EquipoData; onClose: () => void; onSaved: (msg: string) => Promise<void> }) {
+function TeamDialog({ team, data, today, onClose, onSaved }: { team: Team | null; data: EquipoData; today: ISODate; onClose: () => void; onSaved: (msg: string) => Promise<void> }) {
   const nextCode = () => {
     const used = new Set(data.teams.map((t) => t.code));
     for (let i = 1; i < 100; i++) if (!used.has(`E${i}`)) return `E${i}`;
@@ -143,7 +143,8 @@ function TeamDialog({ team, data, onClose, onSaved }: { team: Team | null; data:
   const [active, setActive] = useState(team?.active ?? true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const leads = data.employees.filter((e) => LEAD_LEVELS.includes(e.level));
+  const leads = data.employees.filter((e) => rolesOf(e, data, today).perms.can_lead_team || e.id === team?.lead_employee_id);
+  const leadLevelNames = joinEs(data.levels.filter((l) => l.active && l.can_lead_team).map((l) => l.name));
   const teamName = (id: string | null) => data.teams.find((t) => t.id === id)?.code;
   const toggle = (id: string) => setMembers((m) => (m.includes(id) ? m.filter((x) => x !== id) : [...m, id]));
 
@@ -187,7 +188,7 @@ function TeamDialog({ team, data, onClose, onSaved }: { team: Team | null; data:
             <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} placeholder="Equipo 4" />
           </Field>
         </div>
-        <Field label="Encargado" hint="Solo empleados de nivel Encargado o Supervisor.">
+        <Field label="Encargado" hint={leadLevelNames ? `Empleados con un nivel que pueda liderar (${leadLevelNames}).` : "Empleados con un nivel que pueda liderar equipos."}>
           <select className={inputCls} value={lead} onChange={(e) => setLead(e.target.value)}>
             <option value="">Sin encargado</option>
             {leads.map((e) => <option key={e.id} value={e.id}>{e.name} · {e.level}</option>)}

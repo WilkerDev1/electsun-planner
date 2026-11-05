@@ -1,17 +1,20 @@
 import {
   addDays,
   countWorkdays,
+  effectiveRoles,
   lateDays,
   lateText,
   monogramColors,
   plural,
   shortDate,
   weekdayShort,
+  type EffectiveRoles,
   type EmployeeState,
   type ISODate,
-  type Level,
+  type LevelDef,
+  type LevelIcon,
 } from "../../../shared/domain";
-import type { Company, Employee, Team } from "../../../shared/contracts/equipo";
+import type { Company, Employee, EmployeeRole, LevelItem, Team } from "../../../shared/contracts/equipo";
 import type { Project } from "../../../shared/contracts/projects";
 
 // Presentación de V4EquipoTablas: iconos, colores por nivel y estado, y la obra de cada equipo.
@@ -21,6 +24,9 @@ export const TABS: Tab[] = ["empleados", "equipos", "empresas"];
 
 export type EquipoData = {
   employees: Employee[];
+  /** Catálogo de niveles (NIV-01), con los inactivos. */
+  levels: LevelItem[];
+  levelsById: Map<string, LevelDef>;
   teams: Team[];
   companies: Company[];
   /** `null` mientras `GET /api/projects` no responda: la pantalla sigue sin la obra actual. */
@@ -37,16 +43,47 @@ export const ICON = {
   pencil: "M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z",
 };
 
-export const LEVEL_STYLE: Record<
-  Level,
-  { group: string; icon: string; fg: string; bg: string; border: string; avBg: string; avFg: string }
-> = {
-  Supervisor: { group: "Supervisión", icon: "M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z", fg: "#1F2A3D", bg: "#E8ECF2", border: "#D5DBE5", avBg: "#1F2A3D", avFg: "#FFFFFF" },
-  Encargado: { group: "Encargados de equipo", icon: "M5 21V4M5 4h11l-2 4 2 4H5", fg: "#3538CD", bg: "#EEF0FE", border: "#DCE0FC", avBg: "#EEF0FE", avFg: "#3538CD" },
-  Técnico: { group: "Técnicos", icon: "M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z", fg: "#344054", bg: "#FFFFFF", border: "#EAECF0", avBg: "#F2F4F7", avFg: "#344054" },
-  Ayudante: { group: "Ayudantes", icon: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1", fg: "#344054", bg: "#FFFFFF", border: "#EAECF0", avBg: "#F2F4F7", avFg: "#344054" },
-  Oficina: { group: "Oficina", icon: ICON.companies, fg: "#344054", bg: "#FFFFFF", border: "#EAECF0", avBg: "#FFF1E7", avFg: "#9A3412" },
+export const LEVEL_ICON: Record<LevelIcon, string> = {
+  shield: "M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z",
+  flag: "M5 21V4M5 4h11l-2 4 2 4H5",
+  wrench: "M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z",
+  user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1",
+  building: ICON.companies,
 };
+
+export type LevelStyle = { group: string; icon: string; fg: string; bg: string; border: string; avBg: string; avFg: string };
+
+/** Colores, icono y título de grupo de un nivel del catálogo. El avatar usa los mismos colores (blanco pasa a gris claro). */
+export function levelStyle(l: LevelDef | null | undefined): LevelStyle {
+  if (!l) return { group: "Sin nivel", icon: ICON.people, fg: "#344054", bg: "#FFFFFF", border: "#EAECF0", avBg: "#F2F4F7", avFg: "#344054" };
+  return {
+    group: l.group_label,
+    icon: LEVEL_ICON[l.icon],
+    fg: l.fg,
+    bg: l.bg,
+    border: l.border,
+    avBg: l.bg.toUpperCase() === "#FFFFFF" ? "#F2F4F7" : l.bg,
+    avFg: l.fg,
+  };
+}
+
+/** Roles de una persona resueltos con la fecha de hoy y el catálogo (EQP-01b). */
+export const rolesOf = (e: Employee, data: EquipoData, today: ISODate): EffectiveRoles<EmployeeRole> =>
+  effectiveRoles(e.roles, data.levelsById, today);
+
+/** Un solo rol vigente, sin fecha de fin y sin cambios programados: el nivel se edita directo en la celda. */
+export const isSimple = (eff: EffectiveRoles<EmployeeRole>) =>
+  eff.current.length === 1 && eff.future.length === 0 && eff.current[0].ends_on === null;
+
+/** «hasta 15 nov» si el rol principal vence, o «→ E2 el 16 nov» si viene un cambio. `null` si no hay nada que avisar. */
+export function roleHint(eff: EffectiveRoles<EmployeeRole>, teams: Team[]): string | null {
+  const main = eff.current.find((r) => r.level.active) ?? eff.current[0];
+  if (main?.ends_on) return `hasta ${shortDate(main.ends_on)}`;
+  const next = eff.future[0];
+  if (!next) return null;
+  const code = next.team_id ? teams.find((t) => t.id === next.team_id)?.code : undefined;
+  return `→ ${code ?? next.level.name} el ${shortDate(next.starts_on)}`;
+}
 
 export const STATE_STYLE: Record<EmployeeState, { fg: string; bg: string; presence: string }> = {
   Activo: { fg: "#095C4F", bg: "#E0F4EF", presence: "#12B76A" },
@@ -107,7 +144,8 @@ export function whereToday(e: Employee, data: EquipoData, today: ISODate) {
   const quiet = "#667085";
   if (e.state === "De baja") return { text: "Fuera de la empresa", sub: "Sin acceso móvil", fg: quiet };
   if (e.state === "Vacaciones") return { text: "De vacaciones", sub: "No cuenta para su equipo", fg: "#B54708" };
-  if (e.level === "Supervisor") {
+  const eff = rolesOf(e, data, today);
+  if (eff.perms.is_supervisor) {
     const active = data.teams.filter((t) => t.active);
     const busy = data.projects ? active.filter((t) => teamAgenda(t.id, data.projects, today)?.now) : active;
     return {
@@ -123,7 +161,7 @@ export function whereToday(e: Employee, data: EquipoData, today: ISODate) {
     if (agenda.now) return { text: agenda.now.name, sub: agenda.now.sub, fg: agenda.now.late ? "#B54708" : "#095C4F" };
     return { text: "Sin obra hoy", sub: agenda.next ? `Sigue ${agenda.next.name}` : "Equipo libre", fg: quiet };
   }
-  if (e.level !== "Oficina") return { text: "Sin equipo", sub: "Asígnalo a un equipo", fg: quiet };
+  if (eff.perms.is_field) return { text: "Sin equipo", sub: "Asígnalo a un equipo", fg: quiet };
   return { text: "Oficina", sub: "En la oficina", fg: "#344054" };
 }
 

@@ -18,14 +18,39 @@ export type StatusKind = (typeof STATUS_KINDS)[number];
 /** Tipos que cuentan como obra activa y ocupan al equipo (EST-02). */
 export const BUSY_KINDS: readonly StatusKind[] = ["programado", "en_obra"];
 
-export const LEVELS = [
-  "Supervisor",
-  "Encargado",
-  "Técnico",
-  "Ayudante",
-  "Oficina",
-] as const;
-export type Level = (typeof LEVELS)[number];
+/** Nombre de un nivel de empleado. El catálogo se configura en Ajustes (NIV-01), así que es texto libre. */
+export type Level = string;
+
+export const LEVEL_ICONS = ["shield", "flag", "wrench", "user", "building"] as const;
+export type LevelIcon = (typeof LEVEL_ICONS)[number];
+
+/** Los cuatro permisos operativos que controla cada nivel (NIV-01). Las cuentas web (`users.role`) van aparte. */
+export const LEVEL_PERMS = ["can_lead_team", "is_supervisor", "can_use_mobile", "is_field"] as const;
+export type LevelPerm = (typeof LEVEL_PERMS)[number];
+export type LevelPerms = Record<LevelPerm, boolean>;
+
+/** Un nivel del catálogo, tal como lo usan las reglas puras de este archivo. */
+export type LevelDef = LevelPerms & {
+  id: string;
+  code: string;
+  name: string;
+  group_label: string;
+  sort: number;
+  fg: string;
+  bg: string;
+  border: string;
+  icon: LevelIcon;
+  active: boolean;
+};
+
+/** Semilla del catálogo: los cinco niveles de siempre (migración 003 y datos de demostración). */
+export const DEFAULT_LEVELS: Omit<LevelDef, "id">[] = [
+  { code: "supervisor", name: "Supervisor", group_label: "Supervisión", sort: 1, fg: "#1F2A3D", bg: "#E8ECF2", border: "#D5DBE5", icon: "shield", can_lead_team: true, is_supervisor: true, can_use_mobile: true, is_field: false, active: true },
+  { code: "encargado", name: "Encargado", group_label: "Encargados de equipo", sort: 2, fg: "#3538CD", bg: "#EEF0FE", border: "#DCE0FC", icon: "flag", can_lead_team: true, is_supervisor: false, can_use_mobile: true, is_field: true, active: true },
+  { code: "tecnico", name: "Técnico", group_label: "Técnicos", sort: 3, fg: "#344054", bg: "#FFFFFF", border: "#EAECF0", icon: "wrench", can_lead_team: false, is_supervisor: false, can_use_mobile: true, is_field: true, active: true },
+  { code: "ayudante", name: "Ayudante", group_label: "Ayudantes", sort: 4, fg: "#344054", bg: "#FFFFFF", border: "#EAECF0", icon: "user", can_lead_team: false, is_supervisor: false, can_use_mobile: true, is_field: true, active: true },
+  { code: "oficina", name: "Oficina", group_label: "Oficina", sort: 5, fg: "#344054", bg: "#FFFFFF", border: "#EAECF0", icon: "building", can_lead_team: false, is_supervisor: false, can_use_mobile: false, is_field: false, active: true },
+];
 
 export const EMPLOYEE_STATES = ["Activo", "Vacaciones", "De baja"] as const;
 export type EmployeeState = (typeof EMPLOYEE_STATES)[number];
@@ -498,4 +523,81 @@ export function mergeProject<T extends MergeableProject>(
   if (patch.show_on_mural === true && !prev.show_on_mural && patch.mural_until === undefined && (!next.mural_until || next.mural_until < today))
     next.mural_until = addDays(today, 7);
   return next;
+}
+
+// ---------- Niveles y roles con vigencia (NIV-01, EQP-01b, EQP-03b) ----------
+// Funciones puras: «hoy» llega de fuera (serverToday() en el servidor, `today` de la sesión en el cliente).
+
+/** Vigencia de un rol: de `starts_on` a `ends_on` (incluido). Sin `ends_on`, no vence. */
+export type RoleSpan = { starts_on: ISODate; ends_on: ISODate | null };
+/** Lo mínimo que estas reglas necesitan de un rol de empleado. */
+export type RoleLike = RoleSpan & { level_id: string; team_id: string | null };
+export type ResolvedRole<R extends RoleLike = RoleLike> = R & { level: LevelDef };
+
+export const isRoleActiveOn = (role: RoleSpan, today: ISODate): boolean =>
+  role.starts_on <= today && (role.ends_on === null || role.ends_on >= today);
+
+/** Dos vigencias comparten al menos un día. */
+export const spansOverlap = (a: RoleSpan, b: RoleSpan): boolean =>
+  a.starts_on <= (b.ends_on ?? "9999-12-31") && b.starts_on <= (a.ends_on ?? "9999-12-31");
+
+export type EffectiveRoles<R extends RoleLike = RoleLike> = {
+  /** Vigentes hoy, por jerarquía del nivel (`sort` menor primero) y luego el más reciente. */
+  current: ResolvedRole<R>[];
+  /** Todavía no empiezan, el más próximo primero. */
+  future: ResolvedRole<R>[];
+  /** Ya vencieron, el más reciente primero. */
+  past: ResolvedRole<R>[];
+  /** Nivel de mayor jerarquía entre los vigentes (prefiere niveles activos); `null` si no hay ninguno vigente. */
+  primary: LevelDef | null;
+  /** Lo que se muestra como «el nivel» de la persona: el principal o, sin vigentes, el último rol que tuvo o el próximo. */
+  display: LevelDef | null;
+  /** OR de los permisos de los niveles vigentes y activos. */
+  perms: LevelPerms;
+};
+
+export function effectiveRoles<R extends RoleLike>(
+  roles: readonly R[],
+  levelsById: ReadonlyMap<string, LevelDef>,
+  today: ISODate,
+): EffectiveRoles<R> {
+  const resolved: ResolvedRole<R>[] = roles.flatMap((r) => {
+    const level = levelsById.get(r.level_id);
+    return level ? [{ ...r, level }] : [];
+  });
+  const current = resolved
+    .filter((r) => isRoleActiveOn(r, today))
+    .sort((a, b) => a.level.sort - b.level.sort || b.starts_on.localeCompare(a.starts_on));
+  const future = resolved.filter((r) => r.starts_on > today).sort((a, b) => a.starts_on.localeCompare(b.starts_on));
+  const past = resolved.filter((r) => r.ends_on !== null && r.ends_on < today).sort((a, b) => b.ends_on!.localeCompare(a.ends_on!));
+  const usable = current.filter((r) => r.level.active);
+  const perms = Object.fromEntries(LEVEL_PERMS.map((p) => [p, usable.some((r) => r.level[p])])) as LevelPerms;
+  const primary = (usable[0] ?? current[0])?.level ?? null;
+  return { current, future, past, primary, display: primary ?? past[0]?.level ?? future[0]?.level ?? null, perms };
+}
+
+/** Quién es el encargado de un equipo hoy: el de un rol vigente, con nivel activo que pueda liderar, ligado a ese equipo. */
+export function effectiveTeamLead<R extends RoleLike & { employee_id: string }>(
+  roles: readonly R[],
+  levelsById: ReadonlyMap<string, LevelDef>,
+  teamId: string,
+  today: ISODate,
+): string | null {
+  const leads = roles
+    .filter((r) => r.team_id === teamId && isRoleActiveOn(r, today))
+    .filter((r) => {
+      const l = levelsById.get(r.level_id);
+      return !!l && l.active && l.can_lead_team;
+    })
+    .sort((a, b) => b.starts_on.localeCompare(a.starts_on) || a.employee_id.localeCompare(b.employee_id));
+  return leads[0]?.employee_id ?? null;
+}
+
+/** Dos roles de encargado del mismo equipo cuyas vigencias se cruzan (EQP-03b). `null` si no hay cruce. */
+export function findLeadOverlap<R extends RoleLike>(roles: readonly R[], levelsById: ReadonlyMap<string, LevelDef>): [R, R] | null {
+  const leads = roles.filter((r) => r.team_id && levelsById.get(r.level_id)?.can_lead_team);
+  for (let i = 0; i < leads.length; i++)
+    for (let j = i + 1; j < leads.length; j++)
+      if (leads[i].team_id === leads[j].team_id && spansOverlap(leads[i], leads[j])) return [leads[i], leads[j]];
+  return null;
 }

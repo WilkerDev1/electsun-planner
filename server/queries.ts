@@ -1,8 +1,10 @@
 import type { Db } from "./db.js";
 import type { Project } from "../shared/contracts/projects.js";
 import type { Status } from "../shared/contracts/statuses.js";
-import type { Company, Employee, Team } from "../shared/contracts/equipo.js";
+import type { Company, Employee, EmployeeRole, LevelItem, Team } from "../shared/contracts/equipo.js";
 import type { PrepItem } from "../shared/contracts/prep.js";
+import { effectiveRoles, effectiveTeamLead, type ISODate, type LevelDef } from "../shared/domain.js";
+import { serverToday } from "./today.js";
 
 // Lecturas compartidas por administración, mural y móvil. Las escrituras viven en cada módulo de routes/.
 
@@ -63,27 +65,83 @@ export async function listCompanies(db: Db): Promise<Company[]> {
   ).rows;
 }
 
-export async function listTeams(db: Db): Promise<Team[]> {
+/** Catálogo de niveles con cuántas personas lo tienen vigente hoy (NIV-01). */
+export async function listLevels(db: Db, today: ISODate = serverToday()): Promise<LevelItem[]> {
   return (
     await db.query(
-      `SELECT t.id,t.code,t.name,t.lead_employee_id,t.color,t.active,t.version,
-        COALESCE(array_agg(e.id ORDER BY e.name) FILTER (WHERE e.id IS NOT NULL),'{}') AS member_ids
-       FROM teams t LEFT JOIN employees e ON e.team_id=t.id
-       GROUP BY t.id ORDER BY length(t.code), t.code`,
+      `SELECT l.id,l.code,l.name,l.group_label,l.sort,l.fg,l.bg,l.border,l.icon,l.can_lead_team,l.is_supervisor,l.can_use_mobile,l.is_field,
+        l.active,l.version,
+        (SELECT count(DISTINCT r.employee_id)::int FROM employee_roles r
+          WHERE r.level_id=l.id AND r.starts_on<=$1::date AND (r.ends_on IS NULL OR r.ends_on>=$1::date)) AS person_count
+       FROM levels l ORDER BY l.sort,l.name`,
+      [today],
     )
   ).rows;
 }
 
-export async function listEmployees(db: Db): Promise<Employee[]> {
+export const levelMap = (levels: readonly LevelDef[]) => new Map(levels.map((l) => [l.id, l]));
+
+export type RoleRow = { id: string; employee_id: string; level_id: string; team_id: string | null; starts_on: ISODate; ends_on: ISODate | null; note: string };
+
+/** Todos los roles (o los de un empleado), el más reciente primero. */
+export async function listRoles(db: Db, employeeId?: string): Promise<RoleRow[]> {
   return (
+    await db.query(
+      `SELECT id,employee_id,level_id,team_id,starts_on,ends_on,note FROM employee_roles
+       ${employeeId ? "WHERE employee_id=$1" : ""} ORDER BY starts_on DESC, created_at DESC, id`,
+      employeeId ? [employeeId] : [],
+    )
+  ).rows;
+}
+
+/** El encargado de cada equipo se resuelve con los roles vigentes hoy (EQP-03b); `lead_employee_id` guardado es solo una copia. */
+export async function listTeams(db: Db, today: ISODate = serverToday(), opts: { id?: string } = {}): Promise<Team[]> {
+  const rows = (
+    await db.query(
+      `SELECT t.id,t.code,t.name,t.lead_employee_id,t.color,t.active,t.version,
+        COALESCE(array_agg(e.id ORDER BY e.name) FILTER (WHERE e.id IS NOT NULL),'{}') AS member_ids
+       FROM teams t LEFT JOIN employees e ON e.team_id=t.id
+       ${opts.id ? "WHERE t.id=$1" : ""}
+       GROUP BY t.id ORDER BY length(t.code), t.code`,
+      opts.id ? [opts.id] : [],
+    )
+  ).rows as Team[];
+  const [levels, roles] = await Promise.all([listLevels(db, today), listRoles(db)]);
+  const byId = levelMap(levels);
+  return rows.map((t) => ({ ...t, lead_employee_id: effectiveTeamLead(roles, byId, t.id, today) }));
+}
+
+/** Empleados con su nivel principal vigente hoy y todos sus roles. Ordenados por jerarquía del nivel y nombre. */
+export async function listEmployees(db: Db, today: ISODate = serverToday(), opts: { id?: string } = {}): Promise<Employee[]> {
+  const rows = (
     await db.query(
       `SELECT e.id,e.name,e.job,e.level,e.team_id,e.state,e.phone,e.version,
         CASE WHEN l.id IS NULL THEN 'none' WHEN l.active THEN 'active' ELSE 'revoked' END AS mobile_access,
         l.id AS mobile_link_id
        FROM employees e LEFT JOIN access_links l ON l.employee_id=e.id AND l.kind='mobile'
-       ORDER BY array_position(ARRAY['Supervisor','Encargado','Técnico','Ayudante','Oficina'], e.level), e.name`,
+       ${opts.id ? "WHERE e.id=$1" : ""}`,
+      opts.id ? [opts.id] : [],
     )
-  ).rows;
+  ).rows as Omit<Employee, "roles">[];
+  const [levels, roles] = await Promise.all([listLevels(db, today), listRoles(db, opts.id)]);
+  const byId = levelMap(levels);
+  const sortOf = new Map<string, number>();
+  const out = rows.map((e) => {
+    const mine = roles.filter((r) => r.employee_id === e.id);
+    const eff = effectiveRoles(mine, byId, today);
+    sortOf.set(e.id, eff.display?.sort ?? 999);
+    const list: EmployeeRole[] = mine.map((r) => ({
+      id: r.id,
+      level_id: r.level_id,
+      level: byId.get(r.level_id)?.name ?? "",
+      team_id: r.team_id,
+      starts_on: r.starts_on,
+      ends_on: r.ends_on,
+      note: r.note,
+    }));
+    return { ...e, level: eff.display?.name ?? e.level, roles: list };
+  });
+  return out.sort((a, b) => sortOf.get(a.id)! - sortOf.get(b.id)! || a.name.localeCompare(b.name, "es"));
 }
 
 /** Catálogo de preparación con cuántos proyectos tiene cada parámetro (PRY-12). */

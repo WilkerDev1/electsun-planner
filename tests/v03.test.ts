@@ -778,9 +778,9 @@ test("la migración 002 copia las marcas de preparación al catálogo nuevo y bo
   }
 });
 
-test("la base de pruebas ya aplicó 002_v03.sql una sola vez con su suma de verificación (PRY-12)", async () => {
+test("la base de pruebas ya aplicó las migraciones una sola vez con su suma de verificación (PRY-12, NIV-01)", async () => {
   const r = await pool.query("SELECT name FROM schema_migrations ORDER BY name");
-  assert.deepEqual(r.rows.map((x) => x.name), ["001_base.sql", "002_v03.sql"]);
+  assert.deepEqual(r.rows.map((x) => x.name), ["001_base.sql", "002_v03.sql", "003_niveles_roles.sql"]);
 });
 
 // ---------- Resolución de la revisión de v03-base ----------

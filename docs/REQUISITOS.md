@@ -224,15 +224,31 @@ Todas viven en `shared/domain.ts` y las usan servidor y cliente.
 
 **XLS-06 [M]** El servidor no guarda el archivo subido; lo procesa en memoria.
 
-### 4.5 Equipo (EQP)
+### 4.5 Equipo y niveles (EQP, NIV)
 
-Referencia: `V4EquipoTablas.dc.html` (pestañas Empleados, Equipos de obra, Empresas).
+Referencia: `V4EquipoTablas.dc.html` (pestañas Empleados, Equipos de obra, Empresas) y Ajustes > Niveles.
 
-**EQP-01 [M]** **Empleados**: nombre, oficio, nivel (`Supervisor`, `Encargado`, `Técnico`, `Ayudante`, `Oficina`), equipo, estado (`Activo`, `Vacaciones`, `De baja`), teléfono y acceso móvil (ninguno, activo, revocado).
+**NIV-01 [M]** **Catálogo configurable de niveles de empleado** (`levels`: `id`, `code` único, `name` único sin importar mayúsculas, `group_label`, `sort`, `fg`, `bg`, `border`, `icon` en `shield|flag|wrench|user|building`, `active`, `version`) con 4 permisos operativos independientes de las cuentas web (`admin`/`office`):
+- `can_lead_team`: puede ser encargado de un equipo de obra.
+- `is_supervisor`: recorre todas las obras y sale como supervisor en equipos y móvil.
+- `can_use_mobile`: puede tener enlace móvil activo (`/m`).
+- `is_field`: personal de campo que sale a obra.
+- Semilla inicial: `Supervisor`, `Encargado`, `Técnico`, `Ayudante` y `Oficina` (este último bloqueado en edición salvo su orden).
+- `GET /api/levels` (cualquier cuenta autenticada, incluye `person_count` de empleados activos que lo tienen vigente hoy); `POST /api/levels` y `PATCH /api/levels/:id` solo `admin`, con `version`, historial (`level.create|update`), `publishChange("employee")` y tope de 20 niveles. No se permite desactivar el último nivel activo, ni desactivar un nivel que sea el único vigente de un empleado activo, ni quitar `can_lead_team` si deja a un equipo activo sin encargado válido hoy (422 con los nombres). Renombrar un nivel sincroniza `employees.level`. Quitar `can_use_mobile` revoca los enlaces móviles de quienes dependían de ese nivel.
 
-**EQP-02 [M]** Tabla de empleados con filtros por nivel, búsqueda, edición en celda de nivel, equipo y estado, y agrupación visual por nivel.
+**EQP-01 [M]** **Empleados**: nombre, oficio, nivel principal (`employees.level`, sincronizado con su rol vigente de mayor jerarquía), equipo base (`team_id`), estado (`Activo`, `Vacaciones`, `De baja`), teléfono y acceso móvil (ninguno, activo, revocado).
 
-**EQP-03 [M]** **Equipos de obra**: código `E1…E99` único, nombre ("Equipo 1"), encargado (un empleado de nivel Encargado o Supervisor), integrantes (empleados con `team_id`), color opcional, activo. La tarjeta muestra la obra actual ("Colegio Arcoíris · La Romana · hasta vie 30") calculada con CAL-02.
+**EQP-01b [M]** **Roles múltiples con vigencia e historial** (`employee_roles`: `id`, `employee_id`, `level_id`, `team_id` opcional, `starts_on`, `ends_on` opcional con `ends_on >= starts_on`, `note` ≤ 120, `created_by`):
+- Un empleado puede tener varios roles simultáneos vigentes hoy; sus permisos operativos efectivos son la unión (`OR`) de los permisos de sus niveles activos vigentes hoy, y su nivel principal (`employees.level`) es el de menor `sort`.
+- Cada empleado debe tener al menos un rol de un nivel activo vigente hoy. `team_id` en el rol indica el equipo que lidera durante esa vigencia (solo si el nivel tiene `can_lead_team`), sin reemplazar su equipo base (`employees.team_id`). No se permiten dos encargados vigentes para el mismo equipo en rangos de fechas que se solapen (422).
+- En la tabla de Empleados, cada persona aparece una sola vez bajo el grupo de su nivel principal; si tiene más de un rol vigente o vigencias acotadas/futuras, la celda muestra la insignia `+N` y el aviso de vigencia (`hasta …` o `→ E2 el …`), y al filtrar por cualquier nivel aparece si tiene ese nivel vigente hoy. El diálogo de empleado permite editar roles vigentes/futuros y consultar el `<details>` de «Historial de roles» vencidos en solo lectura.
+- Cambiar el nivel desde el selector rápido de la celda cierra los roles vigentes sin equipo liderado (`ends_on = ayer`) y abre el nuevo desde hoy. Pasar a «De baja» o quedar sin ningún rol vigente con `can_use_mobile` revoca el enlace móvil y sus sesiones (ACC-06).
+
+**EQP-02 [M]** Tabla de empleados con filtros dinámicos por nivel activo, búsqueda, edición en celda de nivel (cuando tiene un solo rol sin vigencia), equipo y estado, y agrupación visual por nivel principal.
+
+**EQP-03 [M]** **Equipos de obra**: código `E1…E99` único, nombre ("Equipo 1"), encargado (un empleado con `can_lead_team` vigente hoy), integrantes (empleados con `team_id`), color opcional, activo. La tarjeta muestra la obra actual ("Colegio Arcoíris · La Romana · hasta vie 30") calculada con CAL-02.
+
+**EQP-03b [M]** **Encargado efectivo hoy**: el encargado vigente de un equipo en la fecha `today` se resuelve a partir de los roles activos en `employee_roles` con `team_id = equipo` y `can_lead_team` vigentes en `today` (con respaldo a `teams.lead_employee_id`), manteniendo `teams.lead_employee_id` sincronizado con el encargado efectivo de hoy (`serverToday()`). Cambiar el encargado desde Equipos cierra la vigencia de liderazgo anterior en ese equipo y abre o actualiza la del nuevo encargado desde hoy.
 
 **EQP-04 [M]** Un empleado pertenece como mucho a un equipo. Asignar un integrante desde el equipo cambia su `team_id`.
 
@@ -367,7 +383,9 @@ PostgreSQL 16, sin PostGIS. Ids `uuid`. Fechas de obra como `date` (el parser 10
 | `companies` | `id, name unique, code char(2) unique, color, pattern, active` |
 | `company_logos` | `company_id pk (cascada), mime, data bytea (≤ 300 KB), sha256, updated_at` |
 | `teams` | `id, code unique, name, lead_employee_id, color, active` |
+| `levels` | `id, code unique, name, group_label, sort, fg, bg, border, icon, can_lead_team, is_supervisor, can_use_mobile, is_field, active, version` |
 | `employees` | `id, name, job, level, team_id, state, phone, active` |
+| `employee_roles` | `id, employee_id, level_id, team_id, starts_on, ends_on, note, created_by` |
 | `statuses` | `id, name unique, kind, sort, fg, bg, dot, requires_schedule, requires_reason` |
 | `projects` | Campos de PRY-01 (`prep` vive en `project_prep`) |
 | `prep_items` | `id, code unique, name, pending_label, applies_to, default_on, sort, version` |
@@ -378,7 +396,7 @@ PostgreSQL 16, sin PostGIS. Ids `uuid`. Fechas de obra como `date` (el parser 10
 | `device_sessions` | `hash pk, link_id, expires_at` |
 | `audit` | `id bigserial, actor_id, action, entity, entity_id, diff jsonb, created_at` |
 
-Índices: `projects(status_id)`, `projects(team_id, start_date)`, `audit(entity, entity_id)`, `employees(team_id)`.
+Índices: `projects(status_id)`, `projects(team_id, start_date)`, `audit(entity, entity_id)`, `employees(team_id)`, `employee_roles(employee_id)`, `employee_roles(team_id)`.
 
 ---
 
@@ -396,7 +414,8 @@ JSON bajo `/api`. Esquemas `zod` en `shared/contracts/*.ts`, compartidos con el 
 | `POST /api/projects/import?dry=1`, `GET /api/projects/export` | XLS |
 | `GET/POST/PATCH/DELETE /api/statuses` | EST |
 | `GET/POST/PATCH/DELETE /api/prep-items` | PRY-12, CAL-07 |
-| `GET/POST/PATCH /api/employees`, `/api/teams`, `/api/companies` | EQP |
+| `GET/POST/PATCH /api/levels` | NIV-01 |
+| `GET/POST/PATCH /api/employees`, `/api/teams`, `/api/companies` | EQP, EQP-01b, EQP-03b |
 | `PUT/DELETE/GET /api/companies/:id/logo` | EQP-07 |
 | `GET/POST/PATCH/DELETE /api/notices` | AVI |
 | `GET/PUT /api/mural/settings` | MUR-09 |
@@ -448,8 +467,9 @@ JSON bajo `/api`. Esquemas `zod` en `shared/contracts/*.ts`, compartidos con el 
 | Panel: Estado con motivo de pausa | EST-02, VAL-02 | `PATCH /projects/:id` |
 | Panel: Vista previa del calendario | PRY-07, CAL-03 | — (cálculo local) |
 | Panel: Historial | HIS-02 | `GET /projects/:id/history` |
-| Equipo · Empleados (V4EquipoTablas) | EQP-01, EQP-02, ACC-06, ACC-07 | `/employees`, `/access-links` |
-| Equipo · Equipos de obra | EQP-03, EQP-04 | `/teams` |
+| Ajustes · Niveles | NIV-01, ROL-02 | `/levels` |
+| Equipo · Empleados (V4EquipoTablas) | EQP-01, EQP-01b, EQP-02, ACC-06, ACC-07 | `/employees`, `/levels`, `/access-links` |
+| Equipo · Equipos de obra | EQP-03, EQP-03b, EQP-04 | `/teams`, `/levels` |
 | Equipo · Empresas | EQP-05, EQP-06 | `/companies` |
 | Mural · Configuración (V4Config) | MUR-09, AVI-02, ACC-02 | `/mural/settings`, `/notices`, `/access-links` |
 | Mural TV principal (V4MuralPrincipal) | MUR-01..07, MUR-10..13, CAL-08 | `/view/mural`, `/events` |

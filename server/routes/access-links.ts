@@ -5,6 +5,8 @@ import { pool, transaction, httpError, type Db } from "../db.js";
 import { admin, authenticated, hash, token } from "../auth.js";
 import { audit } from "../audit.js";
 import { publishChange } from "../events.js";
+import { permsOf } from "../roles.js";
+import { serverToday } from "../today.js";
 import { id } from "../../shared/contracts/common.js";
 import { CreateLinkBody, LINK_KINDS, type AccessLink, type LinkKind, type LinkSecret } from "../../shared/contracts/access.js";
 
@@ -20,13 +22,15 @@ async function getLink(db: Db, linkId: string): Promise<AccessLink> {
   return (await db.query(`${LINK_SELECT} WHERE l.id=$1`, [linkId])).rows[0];
 }
 
-/** El enlace móvil solo existe para empleados activos (ACC-06). Bloquea la fila del empleado. */
+/** El enlace móvil solo existe para empleados activos (ACC-06) con algún nivel vigente que permita el móvil (NIV-01). Bloquea la fila. */
 async function requireActiveEmployee(c: PoolClient, employeeId: string) {
   const e = (await c.query("SELECT name,state FROM employees WHERE id=$1 FOR UPDATE", [employeeId])).rows[0] as
     | { name: string; state: string }
     | undefined;
   if (!e) throw httpError(404, "El empleado no existe.");
   if (e.state !== "Activo") throw httpError(422, "Solo se puede dar acceso móvil a un empleado activo.");
+  if (!(await permsOf(c, employeeId, serverToday())).can_use_mobile)
+    throw httpError(422, `El nivel de ${e.name} no tiene acceso móvil. Cámbialo en Ajustes o en su ficha.`);
   return e;
 }
 
