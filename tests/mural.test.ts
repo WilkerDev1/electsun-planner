@@ -56,9 +56,8 @@ test("indicadores de la cabecera (MUR-02)", () => {
     m.kpis.map((k) => [k.key, k.n]),
     [["obra", 3], ["proximos", 6], ["porProgramar", 6], ["terminados", 1]],
   );
-  assert.equal(m.kpis[0].sub, "182.7 kWp"); // 97.28 + 73.08 + 12.29
-  assert.equal(m.kpis[2].sub, "incluye 1 en pausa");
-  assert.equal(m.kpis[3].sub, "en octubre"); // Dulcería Mirabal terminó el 6 oct; las de septiembre no cuentan
+  assert.equal(m.kpis[0].sub, undefined);
+  assert.equal(m.kpis[2].pause, 1);
   assert.equal(m.subtitle, "Instalaciones · Octubre 2026");
   assert.equal(m.active.nObra, 3);
   assert.equal(m.active.nProg, 6);
