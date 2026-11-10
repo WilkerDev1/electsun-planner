@@ -75,7 +75,7 @@ export default function MuralConfig() {
       <div className="flex flex-wrap items-start gap-5">
         <div className="flex min-w-0 max-w-[440px] flex-[1_1_360px] flex-col gap-4">
           {settings && <SettingsCards settings={settings} canEdit={isAdmin} onChange={change} />}
-          <TvLinksCard canEdit={isAdmin} />
+          <TvLinksCard canEdit={isAdmin} general={settings} />
           <NoticesCard today={today} flash={flash} />
         </div>
         <div className="flex min-w-0 flex-[999_1_560px] flex-col gap-5">

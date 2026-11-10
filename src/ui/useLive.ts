@@ -56,7 +56,10 @@ export function useLive<T>(path: string, cacheKey: string, eventsQuery = "") {
         } catch {
           /* sin almacenamiento */
         }
-      setState((s) => ({ ...s, error: err, offline: err.status === 0, revoked: err.status === 401 || err.status === 403 }));
+      const denied = err.status === 401 || err.status === 403;
+      // Sin permiso (revocado o en pausa) no se conservan datos: un fallo de red posterior no debe volver a mostrarlos.
+      // Ante un error de red o 5xx sí se conserva la última copia (modo sin conexión).
+      setState((s) => ({ ...s, ...(denied ? { data: null, fetchedAt: null } : {}), error: err, offline: err.status === 0, revoked: denied }));
     } finally {
       inflight.current = false;
       if (dirty.current) void latest.current();

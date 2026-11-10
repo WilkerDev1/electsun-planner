@@ -11,9 +11,10 @@ import { SESSION_COOKIE } from "../../shared/contracts/access.js";
 export const auth = Router();
 const dummyHash = passwordHash("planner-sin-cuenta-" + Math.random());
 
+// Solo Playwright pone E2E_RELAX_LOGIN_LIMIT=1 (playwright.config.ts): inicia sesión muchas veces desde la misma IP. Nunca en producción.
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 20,
+  limit: process.env.E2E_RELAX_LOGIN_LIMIT === "1" ? 200 : 20,
   standardHeaders: "draft-8",
   legacyHeaders: false,
   message: { message: "Demasiados intentos. Espera 15 minutos." },

@@ -85,13 +85,13 @@ Se porta el modelo de Electsun Monitor (`server/auth.ts`, `server/accounts.ts`).
 
 Se porta `server/boards.ts` (activación por token con hash) como una tabla genérica `access_links`.
 
-**ACC-01 [M]** Un enlace tiene `kind` (`tv` o `mobile`), nombre, `employee_id` (solo móvil), estado activo, `token_hash` y `last_seen_at`.
+**ACC-01 [M]** Un enlace tiene `kind` (`tv` o `mobile`), nombre, `employee_id` (solo móvil), estado activo, `token_hash` y `last_seen_at`. Los enlaces de TV tienen además `title` (opcional, hasta 60 caracteres), `mural` (ajustes propios, ACC-08) y `paused` (migración 004). Una restricción de la base impide esos tres campos en un enlace móvil.
 
 **ACC-02 [M]** Crear o **rotar** un enlace genera un token nuevo de 32 bytes, guarda solo su hash, borra las sesiones de dispositivo previas y devuelve la ruta una sola vez:
 - TV: `/tv/:id#token`.
 - Móvil: `/m/activar#token` (el id viaja en el token compuesto `id.token`).
 
-**ACC-03 [M]** **Revocar** desactiva el enlace y borra sus sesiones de dispositivo. La siguiente petición del dispositivo recibe 403 y la pantalla muestra "Este enlace fue desactivado".
+**ACC-03 [M]** **Revocar** desactiva el enlace y borra sus sesiones de dispositivo. La siguiente petición del dispositivo recibe 403 y la pantalla muestra "Este enlace fue desactivado". Es la acción destructiva: para volver a usarlo hay que generar un enlace nuevo. Para apagar una TV un rato, sin cambiar su dirección, se usa la pausa (ACC-08).
 
 **ACC-04 [M]** Canje: el cliente envía el token con `POST /api/access/session`. El servidor crea una `device_session` y una cookie `HttpOnly`: `planner_tv_<id>` por 30 días o `planner_m` por 90 días. El fragmento `#token` se borra de la barra de direcciones tras el canje.
 
@@ -99,7 +99,14 @@ Se porta `server/boards.ts` (activación por token con hash) como una tabla gen�
 
 **ACC-06 [M]** El enlace móvil solo se puede crear para un empleado `Activo`. Pasar un empleado a "De baja" revoca su enlace; en "Vacaciones" el enlace sigue funcionando.
 
-**ACC-07 [M]** La UI muestra el enlace con un botón "Copiar" y un **código QR** generado en el cliente. Los enlaces de TV se gestionan en Mural; los de móvil, en la fila del empleado (columna "Acceso móvil").
+**ACC-07 [M]** La UI muestra el enlace con un botón "Copiar" y un **código QR** generado en el cliente. Los enlaces de TV se gestionan en Mural; los de móvil, en la fila del empleado (columna "Acceso móvil"). La dirección con el token solo se muestra al crear el enlace o al generar uno nuevo (solo se guarda el hash); la tarjeta lo explica: si se pierde, se genera un enlace nuevo.
+
+**ACC-08 [M]** Cada enlace de TV tiene modo, título, ajustes propios y pausa reversible. Solo administración, solo `kind='tv'`:
+- **Crear** (`POST /api/access-links`): `name`, `title?` y `mural?` (un `MuralSettings` parcial y estricto: claves desconocidas dan 422). El modo es `mural.design`; si no se indica, `principal`.
+- **Cambiar** (`PATCH /api/access-links/:id`): `name?`, `title?` (`null` lo quita), `mural?` (reemplaza todo el objeto de ajustes propios) y `paused?`. En un enlace móvil responde 422. Va en transacción con `audit` (`link.update`, con diff) y llama a `publishChange()`: la TV abierta se actualiza en vivo. Rotar conserva título, ajustes y pausa.
+- **Vista** (`GET /api/view/mural?link=<id>` con la cookie de la TV): los ajustes son los generales con los del enlace encima, y `MuralView.title` trae el título (`null` = "Proyectos"). Una cuenta puede pasar `?link=<id>` para ver exactamente lo que verá esa TV (ruta `/mural/tv?link=<id>`).
+- **Pausa**: conserva el token y las sesiones. La vista responde 403 con `reason: "paused"` ("Esta pantalla está en pausa"), sin datos del mural; la TV muestra "Pantalla en pausa" en letra grande, sigue conectada a `/api/events` y vuelve sola al reanudar, con la misma cookie. Un enlace revocado mantiene su mensaje ("Este enlace fue desactivado"). Una TV en pausa tampoco recibe logotipos ni otros datos (solo los avisos de cambio). Cada enlace guarda su propio modo: cambiar el diseño del mural general no afecta a las TV creadas con modo propio. Una cuenta con sesión iniciada en el mismo navegador ve el mural aunque el enlace esté en pausa (ya tiene permiso para verlo).
+- **UI** (Mural → Pantallas de TV): al crear se elige nombre interno, título opcional y modo con dos botones (`aria-pressed`). Cada fila muestra la insignia del modo (icono y color propios), nombre, título, estado (Activa, En pausa, Revocada), última conexión y "Ajustes propios" si cambia algo además del modo; con las acciones Configurar (diálogo; cada ajuste es "Usar el general" o un valor propio), Vista previa, Pausar o Reanudar, Nuevo enlace y Revocar.
 
 ---
 
@@ -297,7 +304,7 @@ Referencia: `V4MuralPrincipal.dc.html` (diseño principal) y `V4Mural.dc.html` (
 
 **MUR-08 [M]** Diseño timeline: una fila por proyecto activo con datos a la izquierda y la barra en un timeline de N semanas. Las filas que no caben pasan de página por grupo (con la etiqueta repetida si el grupo sigue) y "Esperando fecha" muestra 4 fichas por página (2 × 2), con el nombre y los días completos (nombre en dos líneas si hace falta).
 
-**MUR-09 [M]** Configuración (`V4Config.dc.html`, ruta `/mural`): diseño (principal o timeline), semanas (2, 3, 4), orden de próximos (fecha o prioridad primero), interruptores (Por programar, Observaciones, Bandera de prioridad, Reloj, kWp; kWp apagado por defecto), avisos generales, enlaces de TV y una vista previa en vivo escalada.
+**MUR-09 [M]** Configuración (`V4Config.dc.html`, ruta `/mural`): diseño (principal o timeline), semanas (2, 3, 4), orden de próximos (fecha o prioridad primero), interruptores (Por programar, Observaciones, Bandera de prioridad, Reloj, kWp; kWp apagado por defecto), avisos generales, enlaces de TV y una vista previa en vivo escalada. Cada enlace de TV puede sobrescribir estos ajustes y poner su propio título en la cabecera (ACC-08); lo que no sobrescribe lo hereda de esta configuración general. La cabecera dice "Proyectos" si el enlace no tiene título; un título largo se corta con elipsis sin romper el lienzo de 1920×1080.
 
 **MUR-10 [M]** Actualización: el mural se suscribe a `/api/events` y vuelve a pedir `/api/view/mural` al recibir `change`. Respaldo: consulta cada 60 s. Al recuperar la conexión, reconecta con espera creciente (hasta 30 s).
 
@@ -408,7 +415,7 @@ JSON bajo `/api`. Esquemas `zod` en `shared/contracts/*.ts`, compartidos con el 
 |---|---|
 | `POST /api/auth/login`, `POST /logout`, `GET /me`, `POST /accept`, `POST /password` | AUT |
 | `GET/POST /api/accounts`, `PATCH /api/accounts/:id`, `POST /api/accounts/:id/reset` | AUT-03..08 |
-| `GET/POST /api/access-links`, `POST /:id/rotate`, `POST /:id/revoke` | ACC |
+| `GET/POST /api/access-links`, `PATCH /:id`, `POST /:id/rotate`, `POST /:id/revoke` | ACC, ACC-08 |
 | `POST /api/access/session` (canje) | ACC-04 |
 | `GET/POST /api/projects`, `GET/PATCH /api/projects/:id`, `GET /:id/history`, `POST /:id/archive`, `POST /:id/unarchive`, `POST /archive-bulk` | PRY, VAL, HIS |
 | `POST /api/projects/import?dry=1`, `GET /api/projects/export` | XLS |
@@ -471,7 +478,7 @@ JSON bajo `/api`. Esquemas `zod` en `shared/contracts/*.ts`, compartidos con el 
 | Equipo · Empleados (V4EquipoTablas) | EQP-01, EQP-01b, EQP-02, ACC-06, ACC-07 | `/employees`, `/levels`, `/access-links` |
 | Equipo · Equipos de obra | EQP-03, EQP-03b, EQP-04 | `/teams`, `/levels` |
 | Equipo · Empresas | EQP-05, EQP-06 | `/companies` |
-| Mural · Configuración (V4Config) | MUR-09, AVI-02, ACC-02 | `/mural/settings`, `/notices`, `/access-links` |
+| Mural · Configuración (V4Config) | MUR-09, AVI-02, ACC-02, ACC-08 | `/mural/settings`, `/notices`, `/access-links` |
 | Mural TV principal (V4MuralPrincipal) | MUR-01..07, MUR-10..13, CAL-08 | `/view/mural`, `/events` |
 | Mural TV timeline (V4Mural) | MUR-08 | `/view/mural` |
 | Móvil Hoy / Obras / Calendario / Detalle (V4Movil) | MOV-01..09, CAL-09 | `/view/movil`, `/events` |

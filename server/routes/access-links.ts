@@ -3,19 +3,19 @@ import type { PoolClient } from "pg";
 import { z } from "zod";
 import { pool, transaction, httpError, type Db } from "../db.js";
 import { admin, authenticated, hash, token } from "../auth.js";
-import { audit } from "../audit.js";
+import { audit, diffOf } from "../audit.js";
 import { publishChange } from "../events.js";
 import { permsOf } from "../roles.js";
 import { serverToday } from "../today.js";
 import { id } from "../../shared/contracts/common.js";
-import { CreateLinkBody, LINK_KINDS, type AccessLink, type LinkKind, type LinkSecret } from "../../shared/contracts/access.js";
+import { CreateLinkBody, LINK_KINDS, PatchTvLinkBody, type AccessLink, type LinkKind, type LinkSecret } from "../../shared/contracts/access.js";
 
 // F1·A — Enlaces de TV y móvil (ACC-01..03, ACC-06, ACC-07). Solo administración (ROL-02).
 // El token solo se guarda como hash(); la ruta con el token se devuelve una única vez.
 export const accessLinks = Router();
 accessLinks.use(authenticated, admin);
 
-const LINK_SELECT = `SELECT l.id,l.kind,l.name,l.employee_id,e.name AS employee_name,l.active,l.last_seen_at,l.created_at
+const LINK_SELECT = `SELECT l.id,l.kind,l.name,l.employee_id,e.name AS employee_name,l.active,l.title,l.mural,l.paused,l.last_seen_at,l.created_at
   FROM access_links l LEFT JOIN employees e ON e.id=l.employee_id`;
 
 async function getLink(db: Db, linkId: string): Promise<AccessLink> {
@@ -48,13 +48,20 @@ accessLinks.post("/", async (req, res) => {
   const t = token();
   const result = await transaction(async (c) => {
     if (b.kind === "tv") {
+      // El modo se elige al crear; sin indicar, Principal (ACC-08).
+      const mural = { design: "principal", ...b.mural };
       const linkId = (
         await c.query(
-          "INSERT INTO access_links(id,kind,name,active,token_hash,created_by) VALUES(gen_random_uuid(),'tv',$1,true,$2,$3) RETURNING id",
-          [b.name, hash(t), req.user!.id],
+          "INSERT INTO access_links(id,kind,name,active,token_hash,created_by,title,mural) VALUES(gen_random_uuid(),'tv',$1,true,$2,$3,$4,$5) RETURNING id",
+          [b.name, hash(t), req.user!.id, b.title ?? null, JSON.stringify(mural)],
         )
       ).rows[0].id as string;
-      await audit(c, req.user!.id, "link.create", "access_link", linkId, { kind: [null, "tv"], name: [null, b.name] });
+      await audit(c, req.user!.id, "link.create", "access_link", linkId, {
+        kind: [null, "tv"],
+        name: [null, b.name],
+        ...(b.title ? { title: [null, b.title] } : {}),
+        mural: [null, mural],
+      });
       return { linkId, kind: "tv" as const, rotated: false };
     }
     const emp = await requireActiveEmployee(c, b.employee_id);
@@ -116,5 +123,36 @@ accessLinks.post("/:id/revoke", async (req, res) => {
     await audit(c, req.user!.id, "link.revoke", "access_link", linkId);
   });
   publishChange("link.revoke");
+  res.json(await getLink(pool, linkId));
+});
+
+/** Cambia el nombre, el título, los ajustes propios o la pausa de una TV sin tocar su token (ACC-08). La TV abierta se actualiza en vivo. */
+accessLinks.patch("/:id", async (req, res) => {
+  const linkId = id.parse(req.params.id);
+  const b = PatchTvLinkBody.parse(req.body);
+  await transaction(async (c) => {
+    const before = (await c.query("SELECT kind,name,title,mural,paused FROM access_links WHERE id=$1 FOR UPDATE", [linkId])).rows[0] as
+      | { kind: LinkKind; name: string; title: string | null; mural: object; paused: boolean }
+      | undefined;
+    if (!before) throw httpError(404, "El enlace no existe.");
+    if (before.kind !== "tv") throw httpError(422, "Solo las pantallas de TV tienen estos ajustes.");
+    const after = {
+      name: b.name ?? before.name,
+      title: b.title === undefined ? before.title : b.title,
+      mural: b.mural ?? before.mural,
+      paused: b.paused ?? before.paused,
+    };
+    await c.query("UPDATE access_links SET name=$1,title=$2,mural=$3,paused=$4 WHERE id=$5", [
+      after.name,
+      after.title,
+      JSON.stringify(after.mural),
+      after.paused,
+      linkId,
+    ]);
+    const sorted = (o: object) => Object.fromEntries(Object.entries(o).sort(([x], [y]) => (x < y ? -1 : 1)));
+    const diff = diffOf({ ...before, mural: sorted(before.mural) }, { ...after, mural: sorted(after.mural) });
+    if (Object.keys(diff).length) await audit(c, req.user!.id, "link.update", "access_link", linkId, diff);
+  });
+  publishChange("link.update");
   res.json(await getLink(pool, linkId));
 });

@@ -3,6 +3,8 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    /** Código estable del servidor (por ejemplo `paused`), cuando lo hay. */
+    public reason?: string,
   ) {
     super(message);
   }
@@ -24,6 +26,6 @@ export async function api<T>(path: string, opts: Options = {}): Promise<T> {
   const data = type.includes("application/json") ? await r.json() : null;
   if (r.status === 401 && !path.startsWith("/auth/") && !path.startsWith("/view/") && !path.startsWith("/access/"))
     window.dispatchEvent(new Event("planner:unauthorized"));
-  if (!r.ok) throw new ApiError(r.status, data?.message ?? "No se pudo completar la solicitud.");
+  if (!r.ok) throw new ApiError(r.status, data?.message ?? "No se pudo completar la solicitud.", data?.reason);
   return data as T;
 }

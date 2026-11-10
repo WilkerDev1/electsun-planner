@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { TZ } from "../../shared/domain";
 import type { MuralView } from "../../shared/contracts/mural";
 import type { RedeemResult } from "../../shared/contracts/access";
@@ -26,10 +26,13 @@ function redeem(id: string, token: string) {
 
 export default function MuralTV({ preview }: { preview?: boolean }) {
   const { id } = useParams();
+  // Vista previa de una cuenta: `/mural/tv?link=<id>` muestra lo que verá esa TV (ACC-08).
+  const [query] = useSearchParams();
+  const previewOf = query.get("link");
   useEffect(() => {
     document.title = "Mural · Electsun";
   }, []);
-  if (preview) return <LiveMural link={null} />;
+  if (preview) return <LiveMural link={null} previewOf={previewOf} />;
   return <TvGate id={id ?? ""} />;
 }
 
@@ -63,8 +66,13 @@ function msToMidnight(now = new Date()) {
   return ((24 * 60 - (h * 60 + m)) * 60 - s) * 1000 + 500;
 }
 
-function LiveMural({ link }: { link: string | null }) {
-  const live = useLive<MuralView>(link ? `/view/mural?link=${link}` : "/view/mural", link ? `mural-${link}` : "mural-preview", link ? `?link=${link}` : "");
+function LiveMural({ link, previewOf = null }: { link: string | null; previewOf?: string | null }) {
+  const shown = link ?? previewOf;
+  const live = useLive<MuralView>(
+    shown ? `/view/mural?link=${encodeURIComponent(shown)}` : "/view/mural",
+    link ? `mural-${link}` : previewOf ? `mural-preview-${previewOf}` : "mural-preview",
+    link ? `?link=${link}` : "",
+  );
   const { reload } = live;
 
   // A medianoche vuelve a pedir el mural, aunque no llegue ningún cambio: "hoy" y las barras se recalculan en el servidor.
@@ -80,6 +88,10 @@ function LiveMural({ link }: { link: string | null }) {
     return () => clearTimeout(timer);
   }, [reload]);
 
+  // Pantalla en pausa (ACC-08): la sesión se conserva, se sigue consultando y vuelve sola al reanudarla.
+  if (live.revoked && live.error?.reason === "paused") {
+    return <Message title="Pantalla en pausa" detail="Volverá sola cuando la reactiven en la oficina." />;
+  }
   if (live.revoked) {
     return link ? (
       <Message title="Este enlace fue desactivado" detail="Pide uno nuevo en la oficina." />
@@ -88,6 +100,7 @@ function LiveMural({ link }: { link: string | null }) {
     );
   }
   if (!live.data) {
+    if (live.error?.status === 404) return <Message title="Este enlace no existe" detail="Revisa la lista de pantallas en Mural." />;
     return live.error ? (
       <Message title="Sin conexión" detail="No se pudo cargar el mural. Se vuelve a intentar solo." />
     ) : (
