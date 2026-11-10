@@ -153,9 +153,11 @@ Ronda única de correcciones. Verificado: `npm run typecheck`, `npm test` (223 p
 | B1 | Corregido | `NODE_ENV=e2e` sustituido por `E2E_RELAX_LOGIN_LIMIT=1`, que solo pone `playwright.config.ts`. Documentado en `.env.example` como variable que nunca se define en producción. |
 | B2 | Se mantiene, anotado | Una cuenta con sesión ya puede ver el mural. Anotado en ACC-08. |
 | B3 | Corregido | `device()` responde 403 con `reason: "paused"` para una TV pausada; `hasAnyAccess` añade `AND NOT l.paused`. El SSE sigue usando `findDevice` y deja conectada a la TV pausada. |
-| B4 | Corregido | Los diálogos de "Nuevo enlace" y "Reactivar" avisan "seguirá en pausa" cuando el enlace está pausado. |
-| B5 | Corregido | `titleSize()` (`src/mural/shared.tsx`): 40 px hasta 26 caracteres, 30 px hasta 40 y 24 px hasta 60, en Principal y Timeline. A 60 caracteres cabe entero y nunca baja de 22 px. |
+| B4 | Corregido | Los diálogos de "Rotar" y "Reactivar" avisan "seguirá en pausa" cuando el enlace está pausado. |
+| B5 | Corregido | `titleSize()` (`src/mural/shared.tsx`): 40 px hasta 26 caracteres, 30 px hasta 40 y 24 px hasta 60, en Principal y Timeline. 60 caracteres caben en mayúsculas/minúsculas normales; en mayúsculas puede aparecer elipsis. Nunca baja de 22 px. |
 | B6 | Se mantiene (decisión del coordinador) | Cada enlace guarda su modo. Anotado en ACC-08. |
 | B7 | Corregido | La insignia dice en texto visible qué cambia: "Ajustes propios: semanas, reloj". |
 | B8 | Corregido | Un 404 en la vista previa muestra "Este enlace no existe". |
 | B9 | Corregido | Nuevas pruebas de integración: logotipo con TV activa (200) y pausada (401), SSE de la TV pausada (queda conectada y recibe `change` al reanudar), `?link=` con un enlace móvil y con un id que no es UUID (404), y rotar con la TV pausada conserva la pausa. No se añadieron E2E de título largo ni de revocado. |
+
+Revisión de confirmación: Aprobado. Ajuste posterior: el lector SSE de las pruebas (`openStream`) usa un único bucle de lectura en segundo plano, sin perder trozos por tiempos de espera.

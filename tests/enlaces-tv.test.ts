@@ -147,17 +147,34 @@ async function openStream(path: string, cookie: string) {
   const reader = r.body?.getReader();
   const decoder = new TextDecoder();
   let seen = "";
+  let ended = false;
+  const pump = (async () => {
+    try {
+      while (reader) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        seen += decoder.decode(chunk.value, { stream: true });
+      }
+    } catch {
+      // lectura cancelada al cerrar
+    } finally {
+      ended = true;
+    }
+  })();
   return {
     status: r.status,
     async until(needle: string, ms = 3000) {
       const deadline = Date.now() + ms;
-      while (!seen.includes(needle) && Date.now() < deadline && reader) {
-        const chunk = await Promise.race([reader.read(), new Promise<null>((resolve) => setTimeout(() => resolve(null), 200))]);
-        if (chunk && !chunk.done) seen += decoder.decode(chunk.value);
+      while (!seen.includes(needle) && !ended && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 25));
       }
       return seen;
     },
-    close: () => ac.abort(),
+    async close() {
+      ac.abort();
+      await reader?.cancel().catch(() => {});
+      await pump;
+    },
   };
 }
 
@@ -174,7 +191,7 @@ test("una TV en pausa no ve logotipos, sigue en el SSE y recibe el aviso al rean
   assert.match(await stream.until("event: ready"), /event: ready/);
   await ctx.request(`/access-links/${tv.id}`, "PATCH", { paused: false }, ctx.admin);
   assert.match(await stream.until("event: change"), /event: change[\s\S]*link\.update/, "al reanudar llega el aviso");
-  stream.close();
+  await stream.close();
   assert.equal((await ctx.request(`/companies/${company}/logo`, "GET", undefined, tv.cookie)).status, 200);
 
   // ?link= de una cuenta: solo enlaces de TV con id válido.
