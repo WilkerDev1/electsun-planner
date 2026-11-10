@@ -3,9 +3,9 @@ import type { ReactNode } from "react";
 // Piezas propias de la pantalla Mural (V4Config).
 
 /** Tarjeta de la configuración: título de 16 px y contenido en columna. */
-export function Section({ title, children, hint, aside }: { title: string; children: ReactNode; hint?: ReactNode; aside?: ReactNode }) {
+export function Section({ title, children, hint, aside, id }: { id?: string; title: string; children: ReactNode; hint?: ReactNode; aside?: ReactNode }) {
   return (
-    <section className="flex flex-col gap-2.5 rounded-2xl border border-line bg-white p-[18px]">
+    <section id={id} className="flex flex-col gap-2.5 rounded-2xl border border-line bg-white p-[18px]">
       <div className="flex items-start justify-between gap-3">
         <h2 className="m-0 text-base font-extrabold">{title}</h2>
         {aside}

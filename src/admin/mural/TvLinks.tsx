@@ -304,6 +304,7 @@ export function TvLinksCard({ canEdit, general }: { canEdit: boolean; general: M
 
   return (
     <Section
+      id="tv-links"
       title="Pantallas de TV"
       hint="Cada TV tiene su propio enlace, modo y título. Ábrelo en el navegador de la pantalla: se actualiza solo y no necesita usuario ni contraseña."
     >
