@@ -119,7 +119,7 @@ app.use((error: unknown, _req: express.Request, res: express.Response, _next: ex
   if (res.headersSent) return res.end();
   if (error instanceof ZodError)
     return res.status(422).json({ message: error.issues.map((x) => `${x.path.join(".")}: ${x.message}`).join("; ") });
-  const e = error as { status?: number; code?: string; message?: string };
+  const e = error as { status?: number; code?: string; message?: string; reason?: string };
   if (e.code === "23505") return res.status(409).json({ message: "Ese registro ya existe." });
   if (e.code === "23503") return res.status(422).json({ message: "Una referencia ya no está disponible." });
   if (e.code === "23514") return res.status(422).json({ message: "Un valor no cumple las reglas." });
@@ -127,6 +127,7 @@ app.use((error: unknown, _req: express.Request, res: express.Response, _next: ex
   if (!e.status) console.error("request_error", e.message);
   res.status(e.status ?? 500).json({
     message: e.status ? e.message : "No se pudo completar la solicitud. Intenta nuevamente.",
+    ...(e.status && e.reason ? { reason: e.reason } : {}),
   });
 });
 

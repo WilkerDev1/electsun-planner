@@ -55,5 +55,5 @@ export async function transaction<T>(fn: (c: pg.PoolClient) => Promise<T>) {
   }
 }
 
-/** Error con código HTTP que el manejador de errores devuelve como `{ message }`. */
-export const httpError = (status: number, message: string) => Object.assign(new Error(message), { status });
+/** Error con código HTTP que el manejador de errores devuelve como `{ message }` (más `reason`, un código estable para el cliente, si lo hay). */
+export const httpError = (status: number, message: string, reason?: string) => Object.assign(new Error(message), { status, reason });

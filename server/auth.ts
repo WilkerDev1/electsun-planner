@@ -5,7 +5,7 @@ import { pool } from "./db.js";
 import type { User } from "../shared/contracts/auth.js";
 import { MOBILE_COOKIE, SESSION_COOKIE, TV_COOKIE_PREFIX, type LinkKind } from "../shared/contracts/access.js";
 
-export type Device = { id: string; kind: LinkKind; employee_id: string | null };
+export type Device = { id: string; kind: LinkKind; employee_id: string | null; paused: boolean };
 
 declare global {
   namespace Express {
@@ -83,14 +83,14 @@ export async function issueDeviceSession(res: Response, link: { id: string; kind
 
 /**
  * Busca la sesión de dispositivo. Para la TV hace falta el id del enlace (`/tv/:id`, `?link=`),
- * porque una misma pantalla puede tener varias cookies. Actualiza `last_seen_at` como mucho cada minuto.
+ * porque una misma pantalla puede tener varias cookies. Una TV en pausa (ACC-08) conserva su sesión: se devuelve con `paused: true` y cada vista decide qué mostrar. Actualiza `last_seen_at` como mucho cada minuto.
  */
 export async function findDevice(req: Request, kind: LinkKind, linkId?: string): Promise<Device | null> {
   if (kind === "tv" && !linkId) return null;
   const t = req.cookies?.[kind === "tv" ? TV_COOKIE_PREFIX + linkId : MOBILE_COOKIE];
   if (!t) return null;
   const r = await pool.query(
-    `SELECT l.id,l.kind,l.employee_id FROM access_links l JOIN device_sessions s ON s.link_id=l.id
+    `SELECT l.id,l.kind,l.employee_id,l.paused FROM access_links l JOIN device_sessions s ON s.link_id=l.id
      WHERE s.hash=$1 AND s.expires_at>now() AND l.active AND l.kind=$2 ${kind === "tv" ? "AND l.id=$3" : ""}`,
     kind === "tv" ? [hash(t), kind, linkId] : [hash(t), kind],
   );

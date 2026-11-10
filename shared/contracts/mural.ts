@@ -22,12 +22,14 @@ export const NoticeBody = z
 
 /**
  * Respuesta de GET /api/view/mural (CAL-08): el modelo ya calculado con los ajustes guardados.
- * Una cuenta puede añadir los ajustes como parámetros (`?weeks=3&show_kwp=1`…) para la vista previa de Configuración.
+ * Una TV recibe los ajustes generales con los propios de su enlace encima. Una cuenta puede añadir los ajustes como parámetros (`?weeks=3&show_kwp=1`…) para la vista previa de Configuración.
  */
 export type MuralView = {
   today: string;
   generatedAt: string;
   settings: MuralSettings;
+  /** Título de la cabecera de esta TV (ACC-08); `null` = "Proyectos". */
+  title: string | null;
   model: MuralModel;
   companies: { id: string; name: string; code: string; color: string; pattern: CompanyPattern; logo_url: string | null }[];
   teams: { id: string; code: string; name: string; color: string | null }[];
