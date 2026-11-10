@@ -110,6 +110,8 @@ export function device(kind: LinkKind) {
       const linkId = String(req.params.id ?? req.query.link ?? "") || undefined;
       const d = await findDevice(req, kind, linkId);
       if (!d) return res.status(403).json({ message: "Este enlace fue desactivado. Pide uno nuevo en la oficina." });
+      // Defensa en profundidad (ACC-08): una TV en pausa no accede a ninguna ruta de datos. El SSE usa findDevice y sigue conectado.
+      if (d.paused) return res.status(403).json({ message: "Esta pantalla está en pausa.", reason: "paused" });
       req.device = d;
       next();
     } catch (e) {
@@ -131,7 +133,7 @@ export async function hasAnyAccess(req: Request): Promise<boolean> {
   if (!hashes.length) return false;
   const r = await pool.query(
     `SELECT 1 FROM device_sessions s JOIN access_links l ON l.id=s.link_id
-     WHERE s.hash=ANY($1::text[]) AND s.expires_at>now() AND l.active LIMIT 1`,
+     WHERE s.hash=ANY($1::text[]) AND s.expires_at>now() AND l.active AND NOT l.paused LIMIT 1`,
     [hashes],
   );
   return r.rowCount === 1;

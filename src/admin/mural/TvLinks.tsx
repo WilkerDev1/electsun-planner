@@ -63,6 +63,22 @@ const stateOf = (l: AccessLink) =>
 /** ¿Sobrescribe algo además del modo? El modo ya se ve en su insignia. */
 const hasOwnSettings = (m: TvMuralOverrides) => Object.keys(m).some((k) => k !== "design");
 
+const OWN_LABEL: Partial<Record<keyof TvMuralOverrides, string>> = {
+  weeks: "semanas",
+  upcoming_order: "orden",
+  show_waiting: "esperando",
+  show_notes: "avisos",
+  show_priority: "prioridad",
+  show_clock: "reloj",
+  show_kwp: "kWp",
+};
+/** Qué cambia la pantalla respecto al general, en texto visible (sin el modo, que ya tiene su insignia). */
+const ownSummary = (m: TvMuralOverrides) =>
+  Object.keys(m)
+    .filter((k) => k !== "design")
+    .map((k) => OWN_LABEL[k as keyof TvMuralOverrides] ?? k)
+    .join(", ");
+
 /** Dos botones grandes para elegir el modo al crear. */
 function ModePicker({ value, onChange }: { value: Design; onChange: (d: Design) => void }) {
   return (
@@ -327,9 +343,7 @@ export function TvLinksCard({ canEdit, general }: { canEdit: boolean; general: M
                       {st.label}
                     </span>
                     {hasOwnSettings(l.mural) && (
-                      <span className="rounded-md bg-fill px-2 py-0.5 text-xs font-bold text-ink-2" title="Esta pantalla cambia algo del mural general">
-                        Ajustes propios
-                      </span>
+                      <span className="rounded-md bg-fill px-2 py-0.5 text-xs font-bold text-ink-2">Ajustes propios: {ownSummary(l.mural)}</span>
                     )}
                   </span>
                   <span className="flex flex-col text-xs text-muted">
@@ -441,8 +455,8 @@ export function TvLinksCard({ canEdit, general }: { canEdit: boolean; general: M
           onCancel={() => setConfirm(null)}
         >
           {confirm.link.active
-            ? `El enlace actual de ${confirm.link.name} dejará de funcionar y la TV se quedará sin datos hasta que abras el enlace nuevo en ella. El título y los ajustes se conservan.`
-            : `Se creará un enlace nuevo para ${confirm.link.name}. Tendrás que abrirlo en esa TV.`}
+            ? `El enlace actual de ${confirm.link.name} dejará de funcionar y la TV se quedará sin datos hasta que abras el enlace nuevo en ella. El título y los ajustes se conservan.${confirm.link.paused ? " La pantalla está en pausa y seguirá en pausa hasta que la reanudes." : ""}`
+            : `Se creará un enlace nuevo para ${confirm.link.name}. Tendrás que abrirlo en esa TV.${confirm.link.paused ? " La pantalla está en pausa y seguirá en pausa hasta que la reanudes." : ""}`}
         </ConfirmDialog>
       )}
       {confirm?.kind === "revoke" && (

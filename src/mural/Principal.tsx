@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { longDate } from "../../shared/domain";
 import type { ActiveRow, CalBar, CalTeam, KpiTone, MeterItem, MuralModel, NoticeLine, WaitingItem } from "../../shared/mural-model";
-import { ACCENT, Clock, FONT, Flag, SunLogo, TODAY_COLOR, TodayLine, ellipsis, pct, updatedText, type ScreenProps } from "./shared";
+import { ACCENT, Clock, FONT, Flag, SunLogo, TODAY_COLOR, TodayLine, ellipsis, pct, titleSize, updatedText, type ScreenProps } from "./shared";
 import { MuralMark, PatternDot } from "./Mark";
 import { Marquee, PageNumber, Paged, usePages } from "./Rotate";
 import { NO_PAGES, useFit, type FitOptions, type Piece, type Rich } from "./Fit";
@@ -85,7 +85,7 @@ function Header({ model, title, showClock, today }: { model: MuralModel; title: 
       <div style={{ display: "flex", alignItems: "center", gap: 16, minWidth: 0 }}>
         <SunLogo box={60} size={32} radius={16} />
         <div style={{ display: "flex", alignItems: "baseline", gap: 18, minWidth: 0 }}>
-          <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.2, maxWidth: 900, ...ellipsis }}>{title ?? "Proyectos"}</div>
+          <div style={{ fontSize: titleSize(title), fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.2, maxWidth: 900, ...ellipsis }}>{title ?? "Proyectos"}</div>
           <div style={{ fontSize: 22, color: "#667085", fontWeight: 500, flexShrink: 0 }}>{model.subtitle}</div>
         </div>
       </div>

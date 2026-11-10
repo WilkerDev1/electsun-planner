@@ -1,7 +1,7 @@
 import { useMemo, type CSSProperties } from "react";
 import { longDate } from "../../shared/domain";
 import { shortName, type MuralModel, type NoticeLine, type TimelineGroup, type TimelineRow, type WaitingItem } from "../../shared/mural-model";
-import { ACCENT, Clock, FONT, Flag, SunLogo, TODAY_COLOR, ellipsis, pct, updatedText, type ScreenProps } from "./shared";
+import { ACCENT, Clock, FONT, Flag, SunLogo, TODAY_COLOR, ellipsis, pct, titleSize, updatedText, type ScreenProps } from "./shared";
 import { PatternDot } from "./Mark";
 import { PageNumber, Paged, usePages } from "./Rotate";
 import { NO_PAGES, useFit, type FitOptions, type Piece, type Rich } from "./Fit";
@@ -109,7 +109,7 @@ function Header({ model, title, showClock, live, today }: { model: MuralModel; t
       <div style={{ display: "flex", alignItems: "center", gap: 18, minWidth: 0 }}>
         <SunLogo box={64} size={36} radius={18} />
         <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
-          <span style={{ fontSize: 40, fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.15, maxWidth: 1000, ...ellipsis }}>{title ?? "Proyectos"}</span>
+          <span style={{ fontSize: titleSize(title), fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.15, maxWidth: 1000, ...ellipsis }}>{title ?? "Proyectos"}</span>
           <span style={{ display: "flex", gap: 22, fontSize: 22, fontWeight: 700 }}>
             <span style={{ color: obra.fg }}>{c.obra} en obra</span>
             <span style={{ color: prog.fg }}>{c.prog} {c.prog === 1 ? "programado" : "programados"}</span>

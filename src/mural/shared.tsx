@@ -73,4 +73,7 @@ export const Flag = ({ size }: { size: number }) => (
   </svg>
 );
 
+/** Tamaño del título del enlace (MUR-14): 40 px hasta 26 caracteres; luego baja a 30 y 24 px para que los 60 caracteres quepan enteros. */
+export const titleSize = (title: string | null) => ((title?.length ?? 0) <= 26 ? 40 : (title?.length ?? 0) <= 40 ? 30 : 24);
+
 export const ellipsis = { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } as const;

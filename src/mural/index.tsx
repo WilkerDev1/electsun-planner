@@ -100,6 +100,7 @@ function LiveMural({ link, previewOf = null }: { link: string | null; previewOf?
     );
   }
   if (!live.data) {
+    if (live.error?.status === 404) return <Message title="Este enlace no existe" detail="Revisa la lista de pantallas en Mural." />;
     return live.error ? (
       <Message title="Sin conexión" detail="No se pudo cargar el mural. Se vuelve a intentar solo." />
     ) : (

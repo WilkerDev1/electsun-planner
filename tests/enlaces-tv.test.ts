@@ -140,6 +140,62 @@ test("pausar conserva la sesión y reanudar vuelve a 200 con la misma cookie (AC
   assert.equal((await auditRows("link.update", tv.id)).length, 3);
 });
 
+/** Abre un flujo SSE y deja leer sus mensajes. */
+async function openStream(path: string, cookie: string) {
+  const ac = new AbortController();
+  const r = await fetch(ctx.base + "/api" + path, { headers: cookie ? { Cookie: cookie } : {}, signal: ac.signal });
+  const reader = r.body?.getReader();
+  const decoder = new TextDecoder();
+  let seen = "";
+  return {
+    status: r.status,
+    async until(needle: string, ms = 3000) {
+      const deadline = Date.now() + ms;
+      while (!seen.includes(needle) && Date.now() < deadline && reader) {
+        const chunk = await Promise.race([reader.read(), new Promise<null>((resolve) => setTimeout(() => resolve(null), 200))]);
+        if (chunk && !chunk.done) seen += decoder.decode(chunk.value);
+      }
+      return seen;
+    },
+    close: () => ac.abort(),
+  };
+}
+
+test("una TV en pausa no ve logotipos, sigue en el SSE y recibe el aviso al reanudar; ?link= solo de TV (ACC-08)", async () => {
+  const company = (await pool.query("SELECT id FROM companies LIMIT 1")).rows[0].id as string;
+  await pool.query("INSERT INTO company_logos(company_id,mime,data,sha256) VALUES($1,'image/png',$2,$3) ON CONFLICT (company_id) DO NOTHING", [company, Buffer.from([137, 80, 78, 71]), "a".repeat(64)]);
+  assert.equal((await ctx.request(`/companies/${company}/logo`, "GET", undefined, tv.cookie)).status, 200, "TV activa: logotipo visible");
+
+  await ctx.request(`/access-links/${tv.id}`, "PATCH", { paused: true }, ctx.admin);
+  assert.equal((await ctx.request(`/companies/${company}/logo`, "GET", undefined, tv.cookie)).status, 401, "TV en pausa: sin logotipos");
+
+  const stream = await openStream(`/events?link=${tv.id}`, tv.cookie);
+  assert.equal(stream.status, 200, "la TV en pausa sigue conectada a los avisos");
+  assert.match(await stream.until("event: ready"), /event: ready/);
+  await ctx.request(`/access-links/${tv.id}`, "PATCH", { paused: false }, ctx.admin);
+  assert.match(await stream.until("event: change"), /event: change[\s\S]*link\.update/, "al reanudar llega el aviso");
+  stream.close();
+  assert.equal((await ctx.request(`/companies/${company}/logo`, "GET", undefined, tv.cookie)).status, 200);
+
+  // ?link= de una cuenta: solo enlaces de TV con id válido.
+  const mobileId = (await pool.query("SELECT id FROM access_links WHERE kind='mobile' LIMIT 1")).rows[0].id as string;
+  assert.equal((await ctx.request(`/view/mural?link=${mobileId}`, "GET", undefined, ctx.office)).status, 404);
+  assert.equal((await ctx.request("/view/mural?link=no-es-uuid", "GET", undefined, ctx.office)).status, 404);
+});
+
+test("rotar con la TV en pausa conserva la pausa (ACC-08)", async () => {
+  await ctx.request(`/access-links/${tv.id}`, "PATCH", { paused: true }, ctx.admin);
+  const rot = await ctx.request(`/access-links/${tv.id}/rotate`, "POST", {}, ctx.admin);
+  assert.equal(rot.data.link.paused, true);
+  tv.token = rot.data.path.split("#")[1];
+  await redeem();
+  const v = await view();
+  assert.equal(v.status, 403);
+  assert.equal(v.data.reason, "paused");
+  await ctx.request(`/access-links/${tv.id}`, "PATCH", { paused: false }, ctx.admin);
+  assert.equal((await view()).status, 200);
+});
+
 test("rotar conserva título y ajustes; revocar sigue cortando todo (ACC-02, ACC-03)", async () => {
   const rot = await ctx.request(`/access-links/${tv.id}/rotate`, "POST", {}, ctx.admin);
   assert.equal(rot.status, 200);

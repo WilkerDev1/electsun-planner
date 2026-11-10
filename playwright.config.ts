@@ -23,7 +23,7 @@ export default defineConfig({
       PORT: String(PORT),
       APP_ORIGIN: BASE,
       PLANNER_TODAY: "2026-10-27",
-      NODE_ENV: "e2e",
+      E2E_RELAX_LOGIN_LIMIT: "1",
     },
   },
 });
