@@ -11,9 +11,10 @@ import { SESSION_COOKIE } from "../../shared/contracts/access.js";
 export const auth = Router();
 const dummyHash = passwordHash("planner-sin-cuenta-" + Math.random());
 
+// Las pruebas de extremo a extremo (NODE_ENV=e2e) inician sesión muchas veces desde la misma IP: ahí el tope sube.
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 20,
+  limit: process.env.NODE_ENV === "e2e" ? 200 : 20,
   standardHeaders: "draft-8",
   legacyHeaders: false,
   message: { message: "Demasiados intentos. Espera 15 minutos." },
