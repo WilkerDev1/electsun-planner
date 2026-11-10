@@ -65,7 +65,7 @@ export function Principal({ view, live }: ScreenProps) {
       }}
     >
       <style>{`@keyframes mural-pulse{0%{box-shadow:0 0 0 0 rgba(22,163,74,.45)}100%{box-shadow:0 0 0 10px rgba(22,163,74,0)}}.mural-pulse{animation:mural-pulse 2s ease-out infinite}`}</style>
-      <Header model={model} showClock={settings.show_clock} today={view.today} />
+      <Header model={model} title={view.title} showClock={settings.show_clock} today={view.today} />
       <Kpis model={model} />
       <div style={{ height: CONTENT_H, flexShrink: 0, display: "flex", gap: 24 }}>
         <ActiveList model={model} />
@@ -79,14 +79,14 @@ export function Principal({ view, live }: ScreenProps) {
   );
 }
 
-function Header({ model, showClock, today }: { model: MuralModel; showClock: boolean; today: string }) {
+function Header({ model, title, showClock, today }: { model: MuralModel; title: string | null; showClock: boolean; today: string }) {
   return (
     <header style={{ height: 72, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 32 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 16, minWidth: 0 }}>
         <SunLogo box={60} size={32} radius={16} />
-        <div style={{ display: "flex", alignItems: "baseline", gap: 18 }}>
-          <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.1 }}>Proyectos</div>
-          <div style={{ fontSize: 22, color: "#667085", fontWeight: 500 }}>{model.subtitle}</div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 18, minWidth: 0 }}>
+          <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.2, maxWidth: 900, ...ellipsis }}>{title ?? "Proyectos"}</div>
+          <div style={{ fontSize: 22, color: "#667085", fontWeight: 500, flexShrink: 0 }}>{model.subtitle}</div>
         </div>
       </div>
       {showClock && (

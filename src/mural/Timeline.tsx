@@ -52,7 +52,7 @@ export function Timeline({ view, live }: ScreenProps) {
         overflow: "hidden",
       }}
     >
-      <Header model={model} showClock={settings.show_clock} live={live} today={view.today} />
+      <Header model={model} title={view.title} showClock={settings.show_clock} live={live} today={view.today} />
       <Board model={model} pages={pages} />
       {footer && <Footer model={model} show={settings.show_waiting} />}
     </div>
@@ -101,15 +101,15 @@ export function planTimeline(groups: TimelineGroup[], area: number): Fitted[][] 
   return pages;
 }
 
-function Header({ model, showClock, live, today }: { model: MuralModel; showClock: boolean; live: ScreenProps["live"]; today: string }) {
+function Header({ model, title, showClock, live, today }: { model: MuralModel; title: string | null; showClock: boolean; live: ScreenProps["live"]; today: string }) {
   const c = model.timeline.counts;
   const [obra, prog] = model.timeline.groups;
   return (
     <header style={{ height: 88, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 32 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 18, minWidth: 0 }}>
         <SunLogo box={64} size={36} radius={18} />
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <span style={{ fontSize: 40, fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.05 }}>Proyectos</span>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+          <span style={{ fontSize: 40, fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.15, maxWidth: 1000, ...ellipsis }}>{title ?? "Proyectos"}</span>
           <span style={{ display: "flex", gap: 22, fontSize: 22, fontWeight: 700 }}>
             <span style={{ color: obra.fg }}>{c.obra} en obra</span>
             <span style={{ color: prog.fg }}>{c.prog} {c.prog === 1 ? "programado" : "programados"}</span>
